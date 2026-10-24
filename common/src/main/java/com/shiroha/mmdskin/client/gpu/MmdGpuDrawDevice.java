@@ -7,7 +7,6 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.CommandEncoder;
 import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.commands.RenderPassDescriptor;
@@ -52,19 +51,23 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
             .thenComparingLong(PreparedDraw::sequence);
     /**
      * MMD 自有 uniform 块（std140）字节数。成员顺序必须与 MmdUniforms uniform block 一致：
-     * mat4 MmdModelMat / vec4 MmdMaterialColor / float MmdAlpha / float MmdLightFactor /
-     * float MmdOutlineWidth / float MmdEmission / int MmdToonLevels / float MmdRimPower /
-     * float MmdRimIntensity / float MmdSpecularPower / float MmdSpecularIntensity /
+     * mat4 MmdModelMat / mat4 MmdViewMat / vec4 MmdMaterialColor / vec4 MmdColorModulator /
+     * float MmdAlpha / float MmdLightFactor / float MmdOutlineWidth / float MmdEmission /
+     * int MmdToonLevels / float MmdRimPower / float MmdRimIntensity /
+     * float MmdSpecularPower / float MmdSpecularIntensity /
      * vec3 MmdOutlineColor / vec3 MmdToonShadowColor。
+     *
+     * <p>std140 自然对齐后的成员偏移为 0/64/128/144/160/164/168/172/176/180/184/188/192/208/224，
+     * 块大小 240 字节。
      */
-    private static final int UNIFORM_BLOCK_BYTES = 160;
+    private static final int UNIFORM_BLOCK_BYTES = 240;
     /** 单个 draw command 的骨骼调色板槽位大小：48 个 mat4。 */
     private static final int BONE_SLOT_BYTES = MmdRenderPipelines.MAX_PALETTE_BONES * 16 * Float.BYTES;
 
     /**
-     * UBO 槽位的**步长**（不是内容大小）。内容固定 160 字节，但槽位偏移必须按设备的
+     * UBO 槽位的**步长**（不是内容大小）。内容固定 240 字节，但槽位偏移必须按设备的
      * {@code minUniformBufferOffsetAlignment} 对齐——vanilla 的
-     * {@code DynamicGpuDataStorageMapped} 就是这么取整的（内容 160、步长 256）。
+     * {@code DynamicGpuDataStorageMapped} 就是这么取整的（内容 240、步长 256）。
      * 步长不对齐时第 2 个 draw 之后的偏移不是对齐倍数，同帧多个模型的材质参数会串台。
      */
     private int uniformStride;
@@ -112,9 +115,16 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
         }
 
         // 26.3 的 uniform 全部通过 uniform buffer 绑定，必须在打开 Render Pass 之前写完。
-        GpuBufferSlice transforms = RenderSystem.getDynamicUniforms()
-                .writeTransform(RenderSystem.getModelViewMatrixCopy());
-        writeDrawUniforms(encoder, draws, uniforms);
+        //
+        // 全局视图矩阵（原 vanilla DynamicTransforms 块里的 ModelViewMat）直接写进我们自己的
+        // MmdUniforms 块，不再走 RenderSystem.getDynamicUniforms().writeTransform(...)：
+        // vanilla 的动态变换槽位是"每帧预算"，我们每帧多占一个槽位就会把 DynamicGpuData
+        // 的 per-frame 容量打爆，vanilla 会在帧内重建 transform UBO 的 ring buffer，
+        // 被换下来的旧 ring buffer 会在下一次 endFrame() 时被无 fence 等待地 close()，
+        // 而引用它的 GPU 命令还在飞行中 —— 于是 Vulkan 层 use-after-free，进程原生崩溃
+        // （没有 Java 崩溃报告）。
+        Matrix4f viewMatrix = RenderSystem.getModelViewMatrixCopy();
+        writeDrawUniforms(encoder, draws, uniforms, viewMatrix);
 
         // 与 vanilla 主 pass 完全一致地用 6 参重载建 pass：
         //   createRenderPass(label, colorView, Optional.empty(), depthView, OptionalDouble.empty())
@@ -132,7 +142,6 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
                 depth,
                 java.util.OptionalDouble.empty())) {
             RenderSystem.bindDefaultUniforms(pass);
-            pass.setUniform("DynamicTransforms", transforms);
             for (int index = 0; index < draws.size(); index++) {
                 submit(pass, draws.get(index), index, fallback);
             }
@@ -212,7 +221,8 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
      * 把每个 draw 的 MmdUniforms uniform block 写进本帧共享的 uniform buffer。
      * 26.3 不再支持逐值的 uniform 写入，只能整块上传。
      */
-    private void writeDrawUniforms(CommandEncoder encoder, List<PreparedDraw> draws, FrameUniforms uniforms) {
+    private void writeDrawUniforms(CommandEncoder encoder, List<PreparedDraw> draws,
+                                    FrameUniforms uniforms, Matrix4f viewMatrix) {
         GpuBuffer buffer = ensureUniformBuffer(draws.size());
         float[] materialColor = new float[4];
         for (int index = 0; index < draws.size(); index++) {
@@ -222,7 +232,9 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
             uniformStaging.clear();
             Std140Builder builder = Std140Builder.intoBuffer(uniformStaging);
             builder.putMat4f(draw.modelMatrix())
+                    .putMat4f(viewMatrix)
                     .putVec4(materialColor[0], materialColor[1], materialColor[2], materialColor[3])
+                    .putVec4(1.0F, 1.0F, 1.0F, 1.0F)
                     .putFloat(command.alpha())
                     .putFloat(uniforms.lightingEnabled()
                             ? lightFactor(draw.request().snapshot().packedLight()) : 1.0F)
@@ -236,7 +248,7 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
                     .putVec3(uniforms.outlineR(), uniforms.outlineG(), uniforms.outlineB())
                     .putVec3(uniforms.shadowR(), uniforms.shadowG(), uniforms.shadowB());
             // 写回 position 0，让 writeToBuffer 提交完整的 std140 块。
-            // 注意：对齐填充字节（116..127 / 140..143）和尾部（156..159）不会被清零，
+            // 注意：对齐填充字节（196..207 / 220..223）和尾部（236..239）不会被清零，
             // 但 GLSL std140 不读这些填充字节，成员偏移已逐项核对过。
             int stride = uniformStride();
             uniformStaging.position(0);
@@ -247,7 +259,7 @@ public final class MmdGpuDrawDevice implements MmdDrawDevice, ModelGpuMetricsPor
     }
 
     /**
-     * UBO 槽位步长：内容 160 字节，偏移按设备对齐值向上取整。
+     * UBO 槽位步长：内容 240 字节，偏移按设备对齐值向上取整。
      */
     private int uniformStride() {
         int stride = uniformStride;

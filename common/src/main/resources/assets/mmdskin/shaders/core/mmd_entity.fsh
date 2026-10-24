@@ -5,15 +5,16 @@
 // MC 26.3 规范：uniform 全部改为 std140 uniform block，include 语法为 #include <minecraft:xxx.glsl>。
 
 #include <minecraft:fog.glsl>
-#include <minecraft:dynamictransforms.glsl>
 
 uniform sampler2D Sampler0;
 
 // MMD 自有 uniform 块：成员顺序必须与 MmdGpuDrawDevice 的 Std140Builder 写入顺序逐项一致，
-// std140 自然对齐后各成员偏移为 0/64/80/84/88/92/96/100/104/108/112/128/144，块大小 160 字节。
+// std140 自然对齐后各成员偏移为 0/64/128/144/160/164/168/172/176/180/184/188/192/208/224，块大小 240 字节。
 layout(std140) uniform MmdUniforms {
     mat4 MmdModelMat;
+    mat4 MmdViewMat;
     vec4 MmdMaterialColor;
+    vec4 MmdColorModulator;
     float MmdAlpha;
     float MmdLightFactor;
     float MmdOutlineWidth;
@@ -45,7 +46,7 @@ void main() {
     vec4 color = vec4(MmdOutlineColor * mix(1.0, luminance, 0.4),
         texel.a * MmdAlpha * outlineFade);
 #else
-    vec4 color = texture(Sampler0, texCoord0) * vertexColor * ColorModulator;
+    vec4 color = texture(Sampler0, texCoord0) * vertexColor * MmdColorModulator;
     color.rgb *= MmdMaterialColor.rgb;
     color.rgb *= mix(MmdLightFactor, 1.0, MmdEmission);
     color.a *= MmdAlpha;

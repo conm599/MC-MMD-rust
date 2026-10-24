@@ -73,14 +73,19 @@ public final class MmdRenderPipelines {
 
     /**
      * 26.3 的管线只声明 uniform 块绑定：ProjMat 来自 Minecraft 的 Projection 块，
-     * ModelViewMat 来自 DynamicTransforms 块，光照方向来自 Lighting 块，雾参数来自 Fog 块。
-     * 框架侧由 {@code RenderSystem.bindDefaultUniforms} 自动绑定 Projection/Fog/Lighting，
-     * DynamicTransforms 需要 MMD 自己写入。
+     * 光照方向来自 Lighting 块，雾参数来自 Fog 块。
+     * 框架侧由 {@code RenderSystem.bindDefaultUniforms} 自动绑定 Projection/Fog/Globals/Lighting
+     * （它不会碰 DynamicTransforms）。
+     *
+     * <p>这里**故意不声明** {@code BindGroupLayouts.DYNAMIC_TRANSFORMS}：
+     * vanilla 的动态变换槽位是每帧预算，MMD 每帧多占一个槽位就会把 DynamicGpuData
+     * 的 per-frame 容量打爆，触发 vanilla 在帧内重建 transform UBO 并在下一帧
+     * 无 fence 等待地释放仍在飞行中的旧 buffer —— 原生崩溃。
+     * 全局视图矩阵改为写进 MMD 自有的 {@code MmdUniforms} 块。
      */
     private static final RenderPipeline.Snippet BASE = RenderPipeline.builder()
             .withBindGroupLayout(BindGroupLayouts.GLOBALS)
             .withBindGroupLayout(BindGroupLayouts.PROJECTION)
-            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withBindGroupLayout(BindGroupLayouts.LIGHTING)
             .withBindGroupLayout(BindGroupLayouts.FOG)
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)

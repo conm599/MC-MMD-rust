@@ -6,7 +6,6 @@
 
 #include <minecraft:light.glsl>
 #include <minecraft:fog.glsl>
-#include <minecraft:dynamictransforms.glsl>
 #include <minecraft:projection.glsl>
 
 #ifdef MMD_GPU_SKINNING
@@ -26,10 +25,14 @@ layout(location = 3) in vec3 Normal;
 #endif
 
 // MMD 自有 uniform 块：成员顺序必须与 MmdGpuDrawDevice 的 Std140Builder 写入顺序逐项一致，
-// std140 自然对齐后各成员偏移为 0/64/80/84/88/92/96/100/104/108/112/128/144，块大小 160 字节。
+// std140 自然对齐后各成员偏移为 0/64/128/144/160/164/168/172/176/180/184/188/192/208/224，块大小 240 字节。
+// 视图矩阵（原 vanilla DynamicTransforms 的 ModelViewMat）放在这里，
+// 这样 MMD 就完全不再占用 vanilla 动态变换槽位（那会撑爆 per-frame 槽位并触发原生崩溃）。
 layout(std140) uniform MmdUniforms {
     mat4 MmdModelMat;
+    mat4 MmdViewMat;
     vec4 MmdMaterialColor;
+    vec4 MmdColorModulator;
     float MmdAlpha;
     float MmdLightFactor;
     float MmdOutlineWidth;
@@ -76,14 +79,14 @@ void main() {
 #endif
     vec3 transformedNormal = normalize(mat3(MmdModelMat) * skinNormal);
     vec4 modelPosition = MmdModelMat * vec4(skinPosition, 1.0);
-    vec4 baseViewPosition = ModelViewMat * modelPosition;
+    vec4 baseViewPosition = MmdViewMat * modelPosition;
     float viewDepth = length(baseViewPosition.xyz);
     outlineFade = 1.0 - smoothstep(25.0, 40.0, viewDepth);
 #ifdef MMD_OUTLINE
     float distanceWidth = mix(0.8, 1.2, smoothstep(0.0, 25.0, viewDepth));
     modelPosition.xyz += transformedNormal * MmdOutlineWidth * distanceWidth;
 #endif
-    vec4 viewPos = ModelViewMat * modelPosition;
+    vec4 viewPos = MmdViewMat * modelPosition;
     gl_Position = ProjMat * viewPos;
 
     // 26.3 的雾拆成球面/柱面两个距离；沿用 1.21.5 的视空间位置，保证与旧版视觉一致。
@@ -97,7 +100,7 @@ void main() {
         lightColor
     );
     texCoord0 = UV0;
-    viewNormal = normalize(mat3(ModelViewMat) * transformedNormal);
+    viewNormal = normalize(mat3(MmdViewMat) * transformedNormal);
     viewPosition = viewPos.xyz;
-    viewLightDirection = normalize(mat3(ModelViewMat) * vec3(1.0, 0.75, 0.0));
+    viewLightDirection = normalize(mat3(MmdViewMat) * vec3(1.0, 0.75, 0.0));
 }
