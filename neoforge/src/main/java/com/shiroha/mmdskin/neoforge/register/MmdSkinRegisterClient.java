@@ -83,6 +83,7 @@ public final class MmdSkinRegisterClient {
             if (name.startsWith("EntityPlayer")
                 || name.equals("DefaultAnim")
                 || name.equals("CustomAnim")
+                || name.equals("StageAnim")
                 || name.equals("Shader")) {
                 continue;
             }
