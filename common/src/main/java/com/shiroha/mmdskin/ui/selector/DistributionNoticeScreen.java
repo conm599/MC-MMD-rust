@@ -297,6 +297,15 @@ public class DistributionNoticeScreen extends Screen {
                     layout.listBox.y, layout.listBox.y + layout.listBox.h, animatedScroll, max);
         }
 
+        // 按钮行正好压在原版 HUD（血量条 / 快捷栏）上，半透明面板会让 HUD 透过来
+        // 把按钮和文字冲淡。垫一层较实的深色底，按钮才有对比度。
+        int buttonRowLeft = Math.min(layout.acceptButton.x, layout.cancelButton.x) - 3;
+        int buttonRowRight = Math.max(layout.acceptButton.x + layout.acceptButton.w,
+                layout.cancelButton.x + layout.cancelButton.w) + 3;
+        graphics.fill(buttonRowLeft, layout.acceptButton.y - 3,
+                buttonRowRight, layout.acceptButton.y + layout.acceptButton.h + 3,
+                0xA00E1622);
+
         TranslucentTrayChrome.drawButton(graphics, this.font, layout.acceptButton.x, layout.acceptButton.y,
                 layout.acceptButton.w, layout.acceptButton.h,
                 Component.translatable("gui.mmdskin.distribution.notice.accept"), hoveredButton == ButtonTarget.ACCEPT, true);

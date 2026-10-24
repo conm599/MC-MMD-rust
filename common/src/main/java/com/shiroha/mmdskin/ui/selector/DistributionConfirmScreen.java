@@ -329,19 +329,24 @@ public class DistributionConfirmScreen extends Screen {
         ModelDistributionManifest selected = selectedModel();
         int detailX = layout.detail.x;
         int detailY = layout.detail.y;
+        // 这几行正好压在原版 HUD（血量条 / 快捷栏）上，面板是半透明的，
+        // HUD 会直接透过来把文字冲到几乎看不见。垫一层较实的深色底再写文字。
+        graphics.fill(layout.detail.x - 3, layout.detail.y - 3,
+                layout.detail.x + layout.detail.w + 3, layout.checkbox.y + CHECKBOX_SIZE + 3,
+                0xA00E1622);
         if (selected != null) {
             graphics.text(this.font, Component.translatable("gui.mmdskin.distribution.confirm.detail",
                     selected.modelName,
                     selected.fileCount > 0 ? selected.fileCount : 1,
                     String.format("%.1f", selected.totalSize / 1024.0 / 1024.0)).getString(),
-                    detailX, detailY, TranslucentTrayChrome.DETAIL_TEXT, false);
+                    detailX, detailY, TranslucentTrayChrome.BODY_TEXT, false);
             graphics.text(this.font, Component.translatable("gui.mmdskin.distribution.confirm.source",
                     selected.ossVerified
                             ? Component.translatable("gui.mmdskin.distribution.confirm.source.oss").getString()
                             : Component.translatable("gui.mmdskin.distribution.confirm.source.server").getString())
-                    .getString(), detailX, detailY + 10, TranslucentTrayChrome.MUTED_TEXT, false);
+                    .getString(), detailX, detailY + 10, TranslucentTrayChrome.DETAIL_TEXT, false);
             graphics.text(this.font, Component.translatable("gui.mmdskin.distribution.confirm.liability").getString(),
-                    detailX, detailY + 20, TranslucentTrayChrome.MUTED_TEXT, false);
+                    detailX, detailY + 20, TranslucentTrayChrome.DETAIL_TEXT, false);
         }
 
         // 下载状态提示（下载中 / 完成 / 失败）
@@ -353,10 +358,19 @@ public class DistributionConfirmScreen extends Screen {
         // 必须勾选的责任确认框
         int boxX = layout.checkbox.x;
         int boxY = layout.checkbox.y;
-        int boxColor = acknowledged ? TranslucentTrayChrome.ACCENT : (checkboxHovered ? TranslucentTrayChrome.CARD_HOVER : TranslucentTrayChrome.CARD_BACKGROUND);
-        graphics.fill(boxX, boxY, boxX + CHECKBOX_SIZE, boxY + CHECKBOX_SIZE, boxColor);
+        // 未勾选时不能拿 CARD_BACKGROUND(0x24000000，透明度仅 14%) 画框：
+        // 那是半透明卡片底色，压在同样半透明的面板上等于隐形，玩家根本看不到
+        // 这里有个框、更不知道要点哪里。改成「深底 + 亮色描边」，勾选后填主色。
+        int boxFill = acknowledged ? TranslucentTrayChrome.ACCENT : 0xD0101822;
+        int boxBorder = acknowledged ? TranslucentTrayChrome.ACCENT
+                : (checkboxHovered ? TranslucentTrayChrome.ACCENT : 0xCCBCD0DC);
+        graphics.fill(boxX, boxY, boxX + CHECKBOX_SIZE, boxY + CHECKBOX_SIZE, boxFill);
+        graphics.fill(boxX, boxY, boxX + CHECKBOX_SIZE, boxY + 1, boxBorder);
+        graphics.fill(boxX, boxY + CHECKBOX_SIZE - 1, boxX + CHECKBOX_SIZE, boxY + CHECKBOX_SIZE, boxBorder);
+        graphics.fill(boxX, boxY, boxX + 1, boxY + CHECKBOX_SIZE, boxBorder);
+        graphics.fill(boxX + CHECKBOX_SIZE - 1, boxY, boxX + CHECKBOX_SIZE, boxY + CHECKBOX_SIZE, boxBorder);
         if (acknowledged) {
-            graphics.text(this.font, "×", boxX + 2, boxY - 1, TranslucentTrayChrome.TITLE_TEXT, false);
+            graphics.text(this.font, "×", boxX + 2, boxY - 1, 0xFF10202C, false);
         }
         graphics.text(this.font, Component.translatable("gui.mmdskin.distribution.confirm.checkbox").getString(),
                 boxX + CHECKBOX_SIZE + 4, boxY, TranslucentTrayChrome.BODY_TEXT, false);
