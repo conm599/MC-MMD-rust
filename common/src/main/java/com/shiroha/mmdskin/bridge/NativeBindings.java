@@ -112,6 +112,9 @@ final class NativeBindings {
 
     static native void SetFirstPersonMode(long modelHandle, boolean enabled);
 
+    /** 第一人称诊断信息：头部识别结果、被隐藏的材质、眼睛骨骼位置。仅用于日志排查。 */
+    static native String GetFirstPersonInfo(long modelHandle);
+
     static native void GetEyeBonePosition(long modelHandle, float[] output);
 
     static native String GetBoneNames(long modelHandle);

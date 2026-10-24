@@ -162,6 +162,8 @@ pub struct MmdModel {
     head_bone_index: Option<usize>,
     /// 每个子网格是否属于头部（基于顶点位置自动检测）
     head_submesh_flags: Vec<bool>,
+    /// 脖子分界线的 Y 坐标（模型局部空间），头部检测用
+    head_cutoff_y: Option<f32>,
     /// 头部检测是否已初始化
     head_detection_initialized: bool,
     /// 用户设置的材质可见性备份（进入第一人称前保存，退出时恢复）
@@ -282,6 +284,7 @@ impl MmdModel {
             first_person_enabled: false,
             head_bone_index: None,
             head_submesh_flags: Vec::new(),
+            head_cutoff_y: None,
             head_detection_initialized: false,
             eye_bone_index: None,
             eye_bone_pair: None,
@@ -364,13 +367,20 @@ impl MmdModel {
     fn apply_first_person_material_mask(&mut self) {
         let (head_materials, body_materials) = self.classify_head_materials();
         let mut hidden_count = 0;
+        let mut visible = self.material_visible.clone();
         for material_id in head_materials {
-            if body_materials.contains(&material_id) || material_id >= self.material_visible.len() {
+            if body_materials.contains(&material_id) || material_id >= visible.len() {
                 continue;
             }
-            self.material_visible[material_id] = false;
+            visible[material_id] = false;
             hidden_count += 1;
         }
+        // 必须走 replace_material_visibility：它是唯一会自增 material_revision 的入口，
+        // 而 Java 侧靠 material_revision 判断要不要重新拷贝 draw command
+        // （MmdGpuDrawDevice.prepare 里比较 commandRevision 与 description.materialRevision()）。
+        // 直接改 Vec 会让 revision 不变 → 命令缓冲里还是「全部可见」的旧命令 →
+        // 第一人称下头部照旧被画出来，相机像卡在头里。
+        self.replace_material_visibility(visible);
         log::info!(
             "First person material mask applied: hidden_materials={}, head_submeshes={}",
             hidden_count,
@@ -397,6 +407,9 @@ impl MmdModel {
         for (i, vis) in self.material_visible.iter_mut().enumerate() {
             *vis = *vis && hand_mat_ids.contains(&i);
         }
+        // 同上：必须让 material_revision 自增，否则 Java 侧的 draw command 缓存不会刷新。
+        let visible = self.material_visible.clone();
+        self.replace_material_visibility(visible);
     }
 
     pub(crate) fn classify_head_materials(&mut self) -> (HashSet<usize>, HashSet<usize>) {
@@ -628,9 +641,11 @@ impl MmdModel {
             None => {
                 log::warn!("颈部/头部骨骼均未找到，第一人称头部隐藏不可用");
                 self.head_submesh_flags = vec![false; self.submeshes.len()];
+                self.head_cutoff_y = None;
                 return;
             }
         };
+        self.head_cutoff_y = Some(cutoff_y);
 
         // 3. 对每个子网格，按顶点位置判断是否在脖子以上
         self.head_submesh_flags = Vec::with_capacity(self.submeshes.len());
@@ -694,47 +709,89 @@ impl MmdModel {
         }
 
         // 4. 查找眼睛骨骼（用于第一人称相机位置）
-        //    优先级：両目 > 目 > 左目+右目中点
-        let single_eye_names = ["両目", "目", "eye", "Eye", "Eyes", "eyes"];
+        //
+        //    原优先级是「両目 > 目 > 左目+右目中点」，但只看名字会选错：
+        //    有些模型（如纳西妲）的「両目」是放在**头顶上方**的控制骨骼，并不在眼睛位置，
+        //    直接采用会把相机顶到头顶外面去（第一人称视角变成俯视自己的头）。
+        //    眼睛一定紧挨着头骨，所以这里改成：收集所有候选，挑**离头骨最近**的那个；
+        //    距离相同时仍按原优先级（両目 > 目 > 左目/右目）。
+        let single_eye_names: [&str; 2] = ["両目", "目"];
+        let english_eye_names: [&str; 4] = ["eye", "Eye", "Eyes", "eyes"];
+        let left_names: [&str; 4] = ["左目", "eye_L", "Eye_L", "LeftEye"];
+        let right_names: [&str; 4] = ["右目", "eye_R", "Eye_R", "RightEye"];
         self.eye_bone_index = None;
         self.eye_bone_pair = None;
 
-        for name in &single_eye_names {
+        // (优先级, 主索引, 可选的配对索引)
+        let mut candidates: Vec<(u8, usize, Option<usize>)> = Vec::new();
+        for (priority, name) in single_eye_names.iter().enumerate() {
             if let Some(idx) = self.bone_manager.find_bone_by_name(name) {
-                self.eye_bone_index = Some(idx);
-                log::info!("眼睛骨骼检测: 使用 '{}' (索引={})", name, idx);
+                candidates.push((priority as u8, idx, None));
                 break;
             }
         }
+        for name in english_eye_names.iter() {
+            if let Some(idx) = self.bone_manager.find_bone_by_name(name) {
+                candidates.push((2, idx, None));
+                break;
+            }
+        }
+        let left_idx = left_names
+            .iter()
+            .find_map(|name| self.bone_manager.find_bone_by_name(name));
+        let right_idx = right_names
+            .iter()
+            .find_map(|name| self.bone_manager.find_bone_by_name(name));
+        match (left_idx, right_idx) {
+            (Some(left), Some(right)) => candidates.push((3, left, Some(right))),
+            (Some(left), None) => candidates.push((4, left, None)),
+            (None, Some(right)) => candidates.push((4, right, None)),
+            (None, None) => {}
+        }
 
-        if self.eye_bone_index.is_none() {
-            // 尝试左目+右目
-            let left_names = ["左目", "eye_L", "Eye_L", "LeftEye"];
-            let right_names = ["右目", "eye_R", "Eye_R", "RightEye"];
-            let mut left_idx = None;
-            let mut right_idx = None;
-            for name in &left_names {
-                if let Some(idx) = self.bone_manager.find_bone_by_name(name) {
-                    left_idx = Some(idx);
-                    break;
+        let head_y = self
+            .head_bone_index
+            .and_then(|idx| self.bone_manager.get_bone(idx))
+            .map(|bone| bone.initial_position.y);
+        let mut best: Option<(u8, f32, usize, Option<usize>)> = None;
+        for (priority, index, pair) in candidates {
+            let Some(bone) = self.bone_manager.get_bone(index) else {
+                continue;
+            };
+            let y = bone.initial_position.y;
+            // 没有头骨时退化成「全距离相等」，交给优先级决定。
+            let distance = head_y.map(|head| (y - head).abs()).unwrap_or(0.0);
+            let better = match best {
+                None => true,
+                Some((best_priority, best_distance, _, _)) => {
+                    distance < best_distance - 0.01
+                        || (distance <= best_distance + 0.01 && priority < best_priority)
                 }
+            };
+            if better {
+                best = Some((priority, distance, index, pair));
             }
-            for name in &right_names {
-                if let Some(idx) = self.bone_manager.find_bone_by_name(name) {
-                    right_idx = Some(idx);
-                    break;
-                }
+        }
+
+        match best {
+            Some((_, distance, index, Some(right))) => {
+                self.eye_bone_pair = Some((index, right));
+                log::info!(
+                    "眼睛骨骼检测: 使用左右眼中点 (索引={}/{})，离头骨距离={:.2}",
+                    index,
+                    right,
+                    distance
+                );
             }
-            if let (Some(l), Some(r)) = (left_idx, right_idx) {
-                self.eye_bone_pair = Some((l, r));
-                log::info!("眼睛骨骼检测: 使用左目({})+右目({})中点", l, r);
-            } else if let Some(l) = left_idx {
-                self.eye_bone_index = Some(l);
-                log::info!("眼睛骨骼检测: 仅找到左目({})", l);
-            } else if let Some(r) = right_idx {
-                self.eye_bone_index = Some(r);
-                log::info!("眼睛骨骼检测: 仅找到右目({})", r);
-            } else {
+            Some((_, distance, index, None)) => {
+                self.eye_bone_index = Some(index);
+                log::info!(
+                    "眼睛骨骼检测: 使用单个眼睛骨骼 (索引={})，离头骨距离={:.2}",
+                    index,
+                    distance
+                );
+            }
+            None => {
                 log::info!("眼睛骨骼检测: 未找到可用眼睛骨骼");
             }
         }
@@ -756,6 +813,69 @@ impl MmdModel {
         }
 
         self.refresh_effective_material_visibility();
+    }
+
+    /// 第一人称诊断信息（供 Java 侧写日志排查用，不参与渲染）。
+    ///
+    /// 把「头部识别结果 / 被隐藏的材质 / 眼睛骨骼位置」一次性摊开，
+    /// 避免只能靠 Rust 内部 log（游戏里看不到）来猜。
+    pub fn first_person_debug_info(&mut self) -> String {
+        if !self.head_detection_initialized {
+            self.init_head_detection();
+        }
+        let head_bone = self
+            .head_bone_index
+            .and_then(|idx| self.bone_manager.get_bone(idx))
+            .map(|b| format!("{}(y={:.2})", b.name, b.initial_position.y))
+            .unwrap_or_else(|| "<无>".to_string());
+        let eye_bone = self
+            .eye_bone_index
+            .and_then(|idx| self.bone_manager.get_bone(idx))
+            .map(|b| format!("{}(y={:.2})", b.name, b.position().y))
+            .unwrap_or_else(|| "<无>".to_string());
+        let eye_pair = match self.eye_bone_pair {
+            Some((left, right)) => format!(
+                "{}/{}",
+                self.bone_manager
+                    .get_bone(left)
+                    .map(|b| b.name.clone())
+                    .unwrap_or_default(),
+                self.bone_manager
+                    .get_bone(right)
+                    .map(|b| b.name.clone())
+                    .unwrap_or_default()
+            ),
+            None => "<无>".to_string(),
+        };
+        let hidden: Vec<String> = self
+            .materials
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !self.is_material_visible(*index))
+            .map(|(index, material)| format!("{}#{}", material.name, index))
+            .collect();
+        let head_submeshes: Vec<usize> = self
+            .head_submesh_flags
+            .iter()
+            .enumerate()
+            .filter(|(_, flag)| **flag)
+            .map(|(index, _)| index)
+            .collect();
+        let eye_position = self.get_eye_bone_animated_position();
+        format!(
+            "firstPerson={} materials={} headBone={} cutoffY={:?} headSubmeshes={:?} eyeBone={} eyePair={} eyePos=({:.2},{:.2},{:.2}) hidden={:?}",
+            self.first_person_enabled,
+            self.materials.len(),
+            head_bone,
+            self.head_cutoff_y,
+            head_submeshes,
+            eye_bone,
+            eye_pair,
+            eye_position.x,
+            eye_position.y,
+            eye_position.z,
+            hidden
+        )
     }
 
     /// 获取第一人称模式是否启用
