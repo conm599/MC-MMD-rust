@@ -2,6 +2,8 @@
   "key.categories.mmdskin": "MMDスキン",
   "key.mmdskin.config_wheel": "設定ホイール",
   "gui.mmdskin.config_wheel": "設定ホイール",
+  "gui.mmdskin.death_screen_hint": "§eクリック§r 自由視点 · §eダブルクリック§r リスポーン",
+  "gui.mmdskin.death_screen_hint_observe": "自由視点（マウスで見回し / スクロールでズーム） · 左ダブルクリック：リスポーン",
   "gui.mmdskin.config.model_switch": "モデル切替",
   "gui.mmdskin.config.action_select": "アクション選択",
   "gui.mmdskin.config.material_control": "マテリアル制御",

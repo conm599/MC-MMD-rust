@@ -15,6 +15,7 @@
     "LivingEntityDeathParticleMixin",
     "compat.VivecraftVRArmHelperMixin",
     "CameraMixin",
+    "DeathScreenMixin",
     "KeyMappingAccessor",
     "ItemInHandRendererMixin",
     "MinecraftMixin",

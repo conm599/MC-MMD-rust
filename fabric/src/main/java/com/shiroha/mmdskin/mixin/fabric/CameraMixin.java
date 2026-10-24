@@ -3,6 +3,7 @@ package com.shiroha.mmdskin.mixin.fabric;
 
 import com.shiroha.mmdskin.client.MmdClientRenderRuntime;
 import com.shiroha.mmdskin.fabric.compat.YsmCompat;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
 import com.shiroha.mmdskin.stage.client.camera.MMDCameraController;
 import net.minecraft.client.Camera;
 import net.minecraft.client.DeltaTracker;
@@ -47,6 +48,17 @@ public abstract class CameraMixin {
                     target = "Lnet/minecraft/client/Camera;alignWithEntity(F)V",
                     shift = At.Shift.AFTER))
     private void onCameraAligned(DeltaTracker deltaTracker, CallbackInfo callback) {
+        // 死亡观战相机接管（优先级最高：高于舞台相机与第一人称 MMD 相机）。
+        // 26.3 里 Camera.setup 已被拆成 update(DeltaTracker)，alignWithEntity 之后
+        // 才 setPosition/setRotation，这里覆盖后 prepareCullFrustum / setupPerspective
+        // 用的都是新的相机位姿，不会出现"相机在别处、裁剪还在原地"的错位。
+        double[] deathCam = RagdollManager.getInstance().deathCamTarget();
+        if (deathCam != null) {
+            setPosition(deathCam[0], deathCam[1], deathCam[2]);
+            setRotation((float) deathCam[3], (float) deathCam[4]);
+            return;
+        }
+
         Entity entity = this.entity();
         if (entity == null) {
             return;

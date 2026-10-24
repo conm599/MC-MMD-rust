@@ -2,6 +2,8 @@
   "key.categories.mmdskin": "MMD皮肤",
   "key.mmdskin.config_wheel": "配置轮盘",
   "gui.mmdskin.config_wheel": "配置轮盘",
+  "gui.mmdskin.death_screen_hint": "§e单击§r 自由观战 · §e双击§r 复活",
+  "gui.mmdskin.death_screen_hint_observe": "自由观战（鼠标环视 / 滚轮缩放） · 双击左键：复活",
   "gui.mmdskin.config.model_switch": "模型切换",
   "gui.mmdskin.config.action_select": "动作选择",
   "gui.mmdskin.config.material_control": "材质控制",

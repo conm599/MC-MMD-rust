@@ -2,6 +2,8 @@
   "key.categories.mmdskin": "MMD Skin",
   "key.mmdskin.config_wheel": "Config Wheel",
   "gui.mmdskin.config_wheel": "Config Wheel",
+  "gui.mmdskin.death_screen_hint": "§eClick§r free observe · §eDouble-click§r respawn",
+  "gui.mmdskin.death_screen_hint_observe": "Free observe (mouse look / scroll zoom) · Double left-click: respawn",
   "gui.mmdskin.config.model_switch": "Model Switch",
   "gui.mmdskin.config.action_select": "Action Select",
   "gui.mmdskin.config.material_control": "Material Control",

@@ -22,6 +22,7 @@ import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.LightCoordsUtil;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -154,6 +155,15 @@ public final class RagdollManager {
     // ======== 死亡界面劫持（相机） ========
     private boolean cameraHijacked;
     private CameraType savedCameraType;
+    // ======== 死亡观战相机（单击进入：鼠标环视 + 滚轮缩放） ========
+    /** 是否处于"自由观战"状态（死亡屏单击进入，鼠标环视 + 滚轮缩放）。 */
+    private boolean deathCamObserve;
+    /** 自由观战的水平朝向（度）。 */
+    private float deathCamYaw;
+    /** 自由观战的俯仰角（度），默认略微俯视。 */
+    private float deathCamPitch = 25.0f;
+    /** 自由观战相机到支点的距离（格）。 */
+    private double deathCamDistance = 4.5;
     /** 当前世界（换世界 / 断线时清空尸体）。 */
     private Level trackedLevel;
 
@@ -842,6 +852,95 @@ public final class RagdollManager {
         return ConfigManager.isHijackDeathScreen();
     }
 
+    /**
+     * 单击切换自由观战（死亡屏点击层调用；不满足双击复活时走到这里）。
+     *
+     * <p>26.3 适配：{@code Entity.yHeadRot} 字段改为 {@code getYHeadRot()} 方法；
+     * 鼠标抓取仍是 {@code MouseHandler.grabMouse()/releaseMouse()}（SDL 输入栈下未改名）。
+     */
+    public void toggleDeathCamObserve() {
+        Minecraft minecraft = Minecraft.getInstance();
+        deathCamObserve = !deathCamObserve;
+        if (deathCamObserve) {
+            deathCamYaw = minecraft.player != null ? minecraft.player.getYHeadRot() : deathCamYaw;
+            minecraft.mouseHandler.releaseMouse();
+        } else {
+            minecraft.mouseHandler.grabMouse();
+        }
+    }
+
+    public boolean isDeathCamObserve() {
+        return deathCamObserve;
+    }
+
+    /** 自由观战鼠标环视（灵敏度跟随 MC 设置，不硬编码）。 */
+    public void deathCamMouseMove(double dx, double dy) {
+        double sensitivity = Minecraft.getInstance().options.sensitivity().get();
+        double degreesPerPx = 0.4 * (0.5 + sensitivity);
+        deathCamYaw -= (float) (dx * degreesPerPx);
+        deathCamPitch = (float) Mth.clamp(deathCamPitch - dy * degreesPerPx, -85.0, 85.0);
+    }
+
+    /** 自由观战滚轮缩放。 */
+    public void deathCamScroll(double delta) {
+        deathCamDistance = Mth.clamp(deathCamDistance - delta * 0.6, 0.8, 30.0);
+    }
+
+    /**
+     * 相机接管目标（{@code CameraMixin} 每帧调用）。
+     *
+     * @return {x, y, z, yawDegrees, pitchDegrees}；非观战状态返回 null（不接管）
+     */
+    public double[] deathCamTarget() {
+        if (!deathCamObserve) {
+            return null;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || minecraft.level == null) {
+            return null;
+        }
+
+        // 支点：本地玩家的尸体位置（没有就玩家位置）+1m
+        double px;
+        double py;
+        double pz;
+        Corpse corpse = findCorpseForEntity(minecraft.player);
+        if (corpse != null) {
+            px = corpse.x;
+            py = corpse.y;
+            pz = corpse.z;
+        } else {
+            px = minecraft.player.getX();
+            py = minecraft.player.getY();
+            pz = minecraft.player.getZ();
+        }
+        py += 1.0;
+
+        // 期望相机位置 = 支点 - 视线 × 距离；被地形挡住时像原版第三人称一样拉近
+        double radYaw = Math.toRadians(deathCamYaw);
+        double radPitch = Math.toRadians(deathCamPitch);
+        double lx = -Math.sin(radYaw) * Math.cos(radPitch);
+        double ly = -Math.sin(radPitch);
+        double lz = Math.cos(radYaw) * Math.cos(radPitch);
+        Vec3 pivot = new Vec3(px, py, pz);
+        Vec3 desired = pivot.subtract(lx * deathCamDistance, ly * deathCamDistance, lz * deathCamDistance);
+        try {
+            ClipContext clip = new ClipContext(
+                    pivot, desired,
+                    ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.NONE,
+                    minecraft.player);
+            HitResult hit = minecraft.level.clip(clip);
+            if (hit.getType() != HitResult.Type.MISS) {
+                desired = hit.getLocation().add(lx * 0.2, ly * 0.2, lz * 0.2);
+            }
+        } catch (Exception ignored) {
+            // 射线失败时保持期望位置
+        }
+
+        return new double[]{desired.x, desired.y, desired.z, deathCamYaw, deathCamPitch};
+    }
+
     private void tickCameraHijack(Minecraft minecraft) {
         boolean localDead = minecraft.player != null && minecraft.player.isDeadOrDying();
         if (localDead && !cameraHijacked && ConfigManager.isHijackDeathScreen()) {
@@ -860,6 +959,13 @@ public final class RagdollManager {
             minecraft.options.setCameraType(savedCameraType);
         }
         cameraHijacked = false;
+        // 退出死亡状态时必须把自由观战关掉并把鼠标抓回，否则鼠标会一直飘在屏幕上。
+        if (deathCamObserve) {
+            deathCamObserve = false;
+            if (minecraft.mouseHandler != null && minecraft.gui.screen() == null) {
+                minecraft.mouseHandler.grabMouse();
+            }
+        }
     }
 
     // ========================================================================
