@@ -605,10 +605,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            # 注意：这里**不能**再额外列 `*-universal/*.jar`。
+            # 通用版 jar 的 artifact 目录名是 `mmdskin-fabric-<version>-universal`，
+            # 已经被下面这条 `mmdskin-fabric-*/*.jar` 匹配到了；两条都写会导致
+            # 同一个文件被上传两次，第二次 GitHub 返回 404
+            # （Failed to upload release asset ... received status code 404），
+            # 整个 release 任务就挂了。
             artifacts/mmdskin-fabric-*/*.jar
             artifacts/mmdskin-neoforge-*/*.jar
-            artifacts/mmdskin-fabric-*-universal/*.jar
-            artifacts/mmdskin-neoforge-*-universal/*.jar
             artifacts/native-windows-x64/*.dll
             artifacts/native-windows-arm64/*.dll
             artifacts/native-linux-x64/*.so
