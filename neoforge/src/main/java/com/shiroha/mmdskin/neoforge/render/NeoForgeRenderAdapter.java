@@ -17,14 +17,18 @@
 // </ul>
 package com.shiroha.mmdskin.neoforge.render;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.shiroha.mmdskin.client.MmdClientRenderRuntime;
 import com.shiroha.mmdskin.compat.iris.IrisCompatibility;
 import com.shiroha.mmdskin.neoforge.compat.YsmCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 public final class NeoForgeRenderAdapter {
     /**
@@ -62,7 +66,48 @@ public final class NeoForgeRenderAdapter {
         }
         MmdClientRenderRuntime runtime = MmdClientRenderRuntime.current();
         var camera = Minecraft.getInstance().gameRenderer.mainCamera().position();
-        runtime.flushWorldFrame(
-                camera.x, camera.y, camera.z, FULL_BRIGHT_PACKED_LIGHT);
+        // 26.3 的世界视图矩阵（相机旋转）是在 LevelRenderer.render 期间压进
+        // RenderSystem.getModelViewStack() 的，LevelRenderer 返回时弹栈。
+        //
+        // 两端触发时机不同：
+        //   * Fabric 的 LevelRenderEvents.END_MAIN 在主 Pass 的 lambda 里触发
+        //     （LevelRenderer.render 还没返回，压栈还在）→ MMD 读到的是相机旋转矩阵；
+        //   * NeoForge 的 RenderLevelStageEvent.AfterLevel 在 LevelRenderer.render
+        //     返回之后触发（压栈已弹）→ MMD 读到的是单位阵。
+        //
+        // MMD 的模型矩阵是「相机相对」的（实体位置 - 相机位置），必须再乘上相机旋转
+        // 才是视空间坐标。少了这一步，相机相对偏移就被当成世界轴向偏移消费：
+        // 转视角时模型会绕着玩家转圈，连远近都会变（深度分量跟着视角改）。
+        //
+        // 所以这里按 LevelRenderer 的做法把同一份视图旋转矩阵重新压栈，
+        // 让两端的模型矩阵语义完全一致（Fabric 端代码与行为零变化）。
+        Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
+        modelViewStack.pushMatrix();
+        try {
+            modelViewStack.identity();
+            modelViewStack.mul(viewRotationMatrix(event));
+            runtime.flushWorldFrame(
+                    camera.x, camera.y, camera.z, FULL_BRIGHT_PACKED_LIGHT);
+        } finally {
+            modelViewStack.popMatrix();
+        }
+    }
+
+    /**
+     * 本帧世界渲染实际使用的视图旋转矩阵。
+     *
+     * <p>优先取 {@code LevelRenderState.cameraRenderState.viewRotationMatrix}
+     * ——它就是 {@code LevelRenderer.render} 压进 modelViewStack 的那一份，
+     * 保证和地形、实体用的是同一个矩阵（相机横滚也带上）。
+     * 拿不到时退回相机自己算的 {@code Camera.getViewRotationMatrix}。
+     */
+    private static Matrix4f viewRotationMatrix(RenderLevelStageEvent.AfterLevel event) {
+        LevelRenderState levelState = event.getLevelRenderState();
+        if (levelState != null && levelState.cameraRenderState != null
+                && levelState.cameraRenderState.viewRotationMatrix != null) {
+            return levelState.cameraRenderState.viewRotationMatrix;
+        }
+        return Minecraft.getInstance().gameRenderer.mainCamera()
+                .getViewRotationMatrix(new Matrix4f());
     }
 }
