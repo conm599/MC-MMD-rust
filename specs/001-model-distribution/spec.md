@@ -131,11 +131,22 @@
 
 | 阶段 | 内容 | 涉及文件 | 状态 |
 |---|---|---|---|
-| ⑤-1 | 协议与配置层 | `GameDirectoryProvider`、`PathConstants.getGameDirectory()`、`MmdSkinFabric`、`distrib/ModelDistributionConfig`、`distrib/ModelDistributionManifest`、`NetworkOpCode`（+5 操作码） | ✅ 已提交 `bcba254` |
-| ⑤-2 | 服务端 | `distrib/ModelDistributionService`（约 971 行）、`MmdSkinRegisterCommon` 的 4 个 S→C 载荷 | ⬜ |
-| ⑤-3 | 客户端 | `distrib/ModelDistributionClient`（约 681 行）、`MmdSkinNetworkPack.handlePayload` 分发分支、`FabricClientRuntimeHooks` 的 tick/断线钩子 | ⬜ |
-| ⑤-4 | UI | `ui/selector/DistributionNoticeScreen`、`DistributionConfirmScreen`、`ModelSelectorScreen` 接入点、29 个 lang 键 × 3 语言 | ⬜ |
+| ⑤-1 | 协议与配置层 | `GameDirectoryProvider`、`PathConstants.getGameDirectory()`、`MmdSkinFabric`、`distrib/ModelDistributionConfig`、`distrib/ModelDistributionManifest`、`NetworkOpCode`（+5 操作码） | ✅ 已提交 `bcba254`，实机验证 0 错误 |
+| ⑤-2 | 服务端 | `distrib/ModelDistributionService`（1019 行，逐字节照搬）、`MmdSkinRegisterCommon` 的 4 个 S→C 载荷 + JOIN/DISCONNECT/tick 接线 | ✅ 已提交 `e63593b`，实机验证通过 |
+| ⑤-3 | 客户端 | `distrib/ModelDistributionClient`（709 行）、`MmdSkinNetworkPack` 分发二进制分派、`FabricClientNetworkBindings` 请求注入、`FabricClientRuntimeHooks` tick/断线钩子 | ✅ 已提交 `e63593b`，实机验证通过 |
+| ⑤-4 | UI | `ui/selector/DistributionNoticeScreen`、`DistributionConfirmScreen`、`ModelSelectorScreen` 接入点、29 个 lang 键 × 3 语言 | 🔄 进行中 |
 | ⑤-5 | 自动下载与配置项 | `ConfigManager` 新增 `isAutoDownloadNearbyModels()` / `getAutoDownloadRadius()`（默认 48）、配置界面开关 | ⬜ |
+
+### 已完成的实机验证（2026-10-24）
+
+| 项 | 结果 |
+|---|---|
+| 服务端在 26.3 加载分发配置 | ✅ `[Server thread] 模型分发配置: ... (已确认=false 启用=false ...)` |
+| 专用服务器安全（无 `net.minecraft.client.*` 引用） | ✅ 0 `NoClassDefFoundError` |
+| 配置热更新（2 秒轮询） | ✅ `[Server] 检测到分发配置变化，已重新载入` |
+| 清单推送到客户端 | ✅ `[Render thread] 收到模型分发清单: 1 个模型` |
+| 分发单元测试 | ✅ 10/10 PASSED（路径安全 / 目录逃逸 / 分块帧编解码 / 截断帧拒绝 / 分页重组 / gzip 往返 / 默认三重关闭 / 安装失败不丢原模型） |
+| 全量测试（顺带接进构建） | ✅ 47 个测试类 0 失败（此前这批测试从未运行过） |
 
 ---
 
