@@ -7,7 +7,7 @@ import com.shiroha.mmdskin.client.metrics.RenderMetrics;
 import com.shiroha.mmdskin.config.ConfigManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,12 +29,13 @@ public final class PerformanceHud {
     private PerformanceHud() {
     }
 
-    public static void render(GuiGraphics graphics) {
+    public static void render(GuiGraphicsExtractor graphics) {
         if (!ConfigManager.isDebugHudEnabled()) {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.options.hideGui || minecraft.getDebugOverlay().showDebugScreen()) {
+        // 26.3 把 F1「隐藏界面」的状态从 Options.hideGui 挪到了 Hud.isHidden()
+        if (minecraft.gui.hud.isHidden() || minecraft.getDebugOverlay().showDebugScreen()) {
             return;
         }
 
@@ -52,7 +53,7 @@ public final class PerformanceHud {
         graphics.fill(PADDING, PADDING, PADDING + width, PADDING + height, BG_COLOR);
         int y = PADDING + INNER_PAD;
         for (HudLine line : cachedLines) {
-            graphics.drawString(minecraft.font, line.text(), PADDING + INNER_PAD, y, line.color(), true);
+            graphics.text(minecraft.font, line.text(), PADDING + INNER_PAD, y, line.color(), true);
             y += LINE_HEIGHT;
         }
     }

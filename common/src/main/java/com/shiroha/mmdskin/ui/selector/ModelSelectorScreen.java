@@ -1,11 +1,14 @@
 /* 文件职责：提供玩家模型选择原生界面。 */
 package com.shiroha.mmdskin.ui.selector;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.shiroha.mmdskin.ui.chrome.TranslucentTrayChrome;
 import com.shiroha.mmdskin.ui.selector.application.ModelSelectionApplicationService;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.apache.logging.log4j.LogManager;
@@ -60,7 +63,7 @@ public class ModelSelectorScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         Minecraft minecraft = Minecraft.getInstance();
         try {
             updateLayout();
@@ -74,12 +77,14 @@ public class ModelSelectorScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) {
-            return super.mouseClicked(mouseX, mouseY, button);
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
+            return super.mouseClicked(event, doubleClick);
         }
+        double mouseX = event.x();
+        double mouseY = event.y();
         if (!layout.panel.contains(mouseX, mouseY)) {
-            return super.mouseClicked(mouseX, mouseY, button);
+            return super.mouseClicked(event, doubleClick);
         }
 
         if (layout.doneButton.contains(mouseX, mouseY)) {
@@ -116,12 +121,12 @@ public class ModelSelectorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 256) {
+    public boolean keyPressed(KeyEvent event) {
+        if (event.isEscape()) {
             this.onClose();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
@@ -129,17 +134,17 @@ public class ModelSelectorScreen extends Screen {
         return false;
     }
 
-    private void renderScreen(GuiGraphics guiGraphics) {
+    private void renderScreen(GuiGraphicsExtractor guiGraphics) {
         TranslucentTrayChrome.drawOverlay(guiGraphics, this.width, this.height);
         TranslucentTrayChrome.drawPanel(guiGraphics, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h);
 
-        guiGraphics.drawString(this.font, this.title.getString(), layout.header.x, layout.header.y + 1, TranslucentTrayChrome.TITLE_TEXT, false);
+        guiGraphics.text(this.font, this.title.getString(), layout.header.x, layout.header.y + 1, TranslucentTrayChrome.TITLE_TEXT, false);
         String stats = Component.translatable(
                 "gui.mmdskin.model_selector.stats",
                 Math.max(0, modelCards.size() - 1),
                 shorten(currentModel, 8)
         ).getString();
-        guiGraphics.drawString(this.font, stats, layout.header.x, layout.header.y + 10, TranslucentTrayChrome.SUBTITLE_TEXT, false);
+        guiGraphics.text(this.font, stats, layout.header.x, layout.header.y + 10, TranslucentTrayChrome.SUBTITLE_TEXT, false);
 
         drawButton(guiGraphics, layout.doneButton, Component.translatable("gui.done").getString(), hoveredButton == ButtonTarget.DONE, true);
         drawButton(guiGraphics, layout.refreshButton, Component.translatable("gui.mmdskin.refresh").getString(), hoveredButton == ButtonTarget.REFRESH, true);
@@ -150,7 +155,7 @@ public class ModelSelectorScreen extends Screen {
         UiRect list = layout.listBox;
         TranslucentTrayChrome.fillListArea(guiGraphics, list.x, list.y, list.w, list.h);
         if (modelCards.isEmpty()) {
-            guiGraphics.drawCenteredString(this.font, "No models", list.centerX(), list.centerY() - 4, TranslucentTrayChrome.BODY_TEXT);
+            guiGraphics.centeredText(this.font, "No models", list.centerX(), list.centerY() - 4, TranslucentTrayChrome.BODY_TEXT);
             return;
         }
 
@@ -168,14 +173,14 @@ public class ModelSelectorScreen extends Screen {
             boolean selected = card.displayName().equals(currentModel);
             boolean hovered = i == hoveredCard;
             guiGraphics.fill(list.x + 4, y, list.x + list.w - 4, y + CARD_HEIGHT, TranslucentTrayChrome.cardBackground(selected, hovered));
-            guiGraphics.drawString(this.font, buildCardLabel(card), list.x + 7, y + 3, TranslucentTrayChrome.BODY_TEXT, false);
+            guiGraphics.text(this.font, buildCardLabel(card), list.x + 7, y + 3, TranslucentTrayChrome.BODY_TEXT, false);
             y += CARD_HEIGHT + CARD_GAP;
         }
         guiGraphics.disableScissor();
         TranslucentTrayChrome.drawScrollbar(guiGraphics, list.x + list.w - 3, list.y, list.y + list.h, animatedScroll, maxScroll());
     }
 
-    private void drawButton(GuiGraphics guiGraphics, UiRect rect, String text, boolean hovered, boolean enabled) {
+    private void drawButton(GuiGraphicsExtractor guiGraphics, UiRect rect, String text, boolean hovered, boolean enabled) {
         TranslucentTrayChrome.drawButton(guiGraphics, this.font, rect.x, rect.y, rect.w, rect.h, text, hovered, enabled);
     }
 
@@ -282,23 +287,23 @@ public class ModelSelectorScreen extends Screen {
     }
 
     private void flushPendingActions(Minecraft minecraft) {
-        if (pendingSettingsModel != null && minecraft.screen == this) {
+        if (pendingSettingsModel != null && minecraft.gui.screen() == this) {
             String modelName = pendingSettingsModel;
             pendingSettingsModel = null;
-            minecraft.setScreen(new ModelSettingsScreen(modelName, this));
+            minecraft.gui.setScreen(new ModelSettingsScreen(modelName, this));
             return;
         }
-        if (pendingClose && minecraft.screen == this) {
+        if (pendingClose && minecraft.gui.screen() == this) {
             pendingClose = false;
-            minecraft.setScreen(null);
+            minecraft.gui.setScreen(null);
         }
     }
 
     private void closeAfterFailure(Throwable throwable) {
         LOGGER.error("[ModelSelector] Native selector render failed and will close", throwable);
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen == this) {
-            minecraft.setScreen(null);
+        if (minecraft.gui.screen() == this) {
+            minecraft.gui.setScreen(null);
         }
     }
 

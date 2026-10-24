@@ -8,8 +8,9 @@ import com.shiroha.mmdskin.client.frame.ModelTransform;
 import com.shiroha.mmdskin.client.gpu.MmdRenderPipelines;
 import com.shiroha.mmdskin.compat.iris.IrisCompatibility;
 import com.shiroha.mmdskin.config.ConfigManager;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.state.PlayerRenderState;
+import com.shiroha.mmdskin.player.ragdoll.RagdollManager;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import org.joml.Matrix4f;
 
 public final class MmdRenderRouter {
@@ -21,14 +22,14 @@ public final class MmdRenderRouter {
         return route(extractedSnapshot, poseStack, null, null, packedLight, compatibilityConflict);
     }
 
-    public static Result routePlayer(MmdRenderSnapshot extractedSnapshot, PlayerRenderState playerState,
-                                     PoseStack poseStack, MultiBufferSource buffers,
+    public static Result routePlayer(MmdRenderSnapshot extractedSnapshot, AvatarRenderState playerState,
+                                     PoseStack poseStack, SubmitNodeCollector buffers,
                                      int packedLight, boolean compatibilityConflict) {
         return route(extractedSnapshot, poseStack, playerState, buffers, packedLight, compatibilityConflict);
     }
 
     private static Result route(MmdRenderSnapshot extractedSnapshot, PoseStack poseStack,
-                                PlayerRenderState playerState, MultiBufferSource buffers,
+                                AvatarRenderState playerState, SubmitNodeCollector buffers,
                                 int packedLight, boolean compatibilityConflict) {
         if (extractedSnapshot == null || compatibilityConflict || IrisCompatibility.isShadowPass()
                 || !MmdRenderPipelines.isReady()) {
@@ -36,6 +37,11 @@ public final class MmdRenderRouter {
         }
         if (!extractedSnapshot.rendersBody() && !extractedSnapshot.glowing()) {
             return Result.FALLTHROUGH;
+        }
+        // 尸体模型就绪后，本体不再绘制——否则死亡瞬间会同时看到本体和尸体两重身影。
+        // （1.20.1 是在 MobReplacementRenderer / PlayerMixinDelegate 里做同样的判定。）
+        if (RagdollManager.getInstance().shouldSuppressEntityRender(extractedSnapshot.entityId())) {
+            return Result.SUPPRESSED;
         }
 
         MmdClientRenderRuntime runtime = MmdClientRenderRuntime.current();
@@ -91,8 +97,13 @@ public final class MmdRenderRouter {
     }
 
     public enum Result {
+        /** 交回原版渲染。 */
         FALLTHROUGH,
+        /** MMD 模型已入队，原版主体不再绘制。 */
         QUEUED,
-        DEFERRED_LOCAL
+        /** 本地第一人称推迟到专门的通道渲染。 */
+        DEFERRED_LOCAL,
+        /** 尸体已接管，本体整体不画（原版主体也不画）。 */
+        SUPPRESSED
     }
 }

@@ -74,6 +74,22 @@ final class NativeBindings {
                                         boolean jointsEnabled, boolean kinematicFilter,
                                         boolean debugLog);
 
+    static native boolean RagdollEnable(long modelHandle, float[] params);
+
+    static native void RagdollSetFrozen(long modelHandle, boolean frozen);
+
+    static native void RagdollDisable(long modelHandle);
+
+    static native void RagdollSetGround(long modelHandle, float groundLocalY);
+
+    static native void RagdollApplyVelocityDelta(long modelHandle, float vx, float vy, float vz,
+                                                  float yawRadians, float worldToModelScale,
+                                                  boolean upperBodyOnly);
+
+    static native boolean RagdollIsActive(long modelHandle);
+
+    static native String RagdollGetDebugInfo(long modelHandle);
+
     static native boolean IsMaterialVisible(long modelHandle, int materialIndex);
 
     static native void SetMaterialVisible(long modelHandle, int materialIndex, boolean visible);

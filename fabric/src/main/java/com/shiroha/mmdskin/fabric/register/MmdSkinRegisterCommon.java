@@ -22,8 +22,10 @@ public class MmdSkinRegisterCommon {
     private static final Logger logger = LogManager.getLogger();
 
     public static void Register() {
-        PayloadTypeRegistry.playC2S().register(MmdSkinPayload.TYPE, MmdSkinPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(MmdSkinPayload.TYPE, MmdSkinPayload.CODEC);
+        // 26.3 的 PayloadTypeRegistry 改成了"方向 + 阶段"命名：playC2S/playS2C →
+        // serverboundPlay/clientboundPlay。
+        PayloadTypeRegistry.serverboundPlay().register(MmdSkinPayload.TYPE, MmdSkinPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(MmdSkinPayload.TYPE, MmdSkinPayload.CODEC);
 
         ServerPlayNetworking.registerGlobalReceiver(MmdSkinPayload.TYPE, (payload, context) -> {
             ServerPlayer player = context.player();

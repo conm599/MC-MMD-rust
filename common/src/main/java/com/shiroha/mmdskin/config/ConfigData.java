@@ -67,6 +67,17 @@ public class ConfigData {
     public float firstPersonCameraForwardOffset = 0.0f;
     public float firstPersonCameraVerticalOffset = 0.0f;
 
+    public boolean ragdollEnabled = true;
+    public String corpseKeepMode = "NEARBY";
+    public double corpseKeepRadius = 48.0;
+    public long corpseKeepSeconds = 60;
+    public int maxCorpses = 2;
+    public float ragdollJointStrength = 1.35f;
+    public boolean hideDeathPoof = true;
+    public boolean hijackDeathScreen = true;
+    public float ragdollDeathAnimSeconds = 0.0f;
+    public int ragdollPhysicsKeepSeconds = 60;
+
     public int textureCacheBudgetMB = 256;
     public boolean debugHudEnabled = false;
 
@@ -173,7 +184,38 @@ public class ConfigData {
         toonOutlineB = clamp(toonOutlineB, 0.0f, 1.0f);
         maxPhysicsModelsPerFrame = Math.max(1, maxPhysicsModelsPerFrame);
         physicsLodMaxDistance = Math.max(0.0f, physicsLodMaxDistance);
+        corpseKeepMode = normalizeCorpseKeepMode(corpseKeepMode);
+        // 上下限与 1.20.1 的 ConfigData 归一化保持一致。26.3 移植时这些上限被放开了：
+        // 每具尸体 = 1 个 native 模型实例 + 1 个 Bullet world（16 刚体 + 15 约束）
+        // + 持续的渲染与物理步进，没有上限时用户一个手改的配置文件就能吃满内存/CPU。
+        //
+        // NaN 要单独挡掉：clamp 是 Math.max(min, Math.min(max, v))，Math.min(256, NaN) = NaN，
+        // NaN 会原样穿过去 —— corpseKeepRadius = NaN 时距离逐出恒不成立（尸体永不逐出）。
+        corpseKeepRadius = Double.isFinite(corpseKeepRadius)
+                ? clamp((float) corpseKeepRadius, 8.0f, 256.0f)
+                : 48.0;
+        corpseKeepSeconds = Math.max(5L, corpseKeepSeconds);
+        maxCorpses = Math.max(1, Math.min(64, maxCorpses));
+        ragdollJointStrength = Float.isFinite(ragdollJointStrength)
+                ? clamp(ragdollJointStrength, 0.3f, 4.0f)
+                : 1.35f;
+        ragdollDeathAnimSeconds = Float.isFinite(ragdollDeathAnimSeconds)
+                ? clamp(ragdollDeathAnimSeconds, 0.0f, 5.0f)
+                : 0.0f;
+        ragdollPhysicsKeepSeconds = Math.max(0, Math.min(3600, ragdollPhysicsKeepSeconds));
         vrArmIKStrength = !Float.isFinite(vrArmIKStrength) ? 1.0f : clamp(vrArmIKStrength, 0.0f, 1.0f);
+    }
+
+    /** 尸体保留模式只接受三种取值，未知值回退到 NEARBY。 */
+    private static String normalizeCorpseKeepMode(String mode) {
+        if (mode == null) {
+            return "NEARBY";
+        }
+        String normalized = mode.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "NEARBY", "SECONDS", "FOREVER" -> normalized;
+            default -> "NEARBY";
+        };
     }
 
     private static float clamp(float value, float min, float max) {

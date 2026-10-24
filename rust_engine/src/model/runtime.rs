@@ -140,6 +140,11 @@ pub struct MmdModel {
     /// 骨骼变换缓冲区（避免每帧堆分配）
     physics_bone_transforms_buf: Vec<Mat4>,
 
+    /// Death ragdoll (takes over the main body bones, independent of MMD physics)
+    ragdoll: Option<crate::ragdoll::MmdRagdoll>,
+    /// Freeze flag: when true the ragdoll stops stepping (pose is held, saves CPU)
+    ragdoll_frozen: bool,
+
     // 材质可见性控制（用于脱外套等功能）
     material_visible: Vec<bool>,
     user_material_visible: Vec<bool>,
@@ -255,6 +260,8 @@ impl MmdModel {
             physics: None,
             physics_enabled: false,
             physics_bone_transforms_buf: Vec::new(),
+        ragdoll: None,
+        ragdoll_frozen: false,
             material_visible: Vec::new(),
             user_material_visible: Vec::new(),
             material_morph_results_flat_cache: Vec::new(),
@@ -1143,67 +1150,12 @@ impl MmdModel {
     }
 
     /// 更新动画（每帧调用）- 多动画层版本（CPU蒙皮模式）
-    #[allow(unreachable_code)]
+    ///
+    /// 真正的实现见 {@link MmdModel::tick_animation_internal}。这里原来还留着一份
+    /// 早期实现，被 `return;` 挡在后面成为死代码——其中包含第二处布娃娃步进，
+    /// 一旦有人删掉那句 return 就会每帧步进两次（物理速度翻倍、肉体穿地）。
     pub fn tick_animation(&mut self, elapsed: f32) {
         self.tick_animation_internal(elapsed);
-        return;
-        // 更新所有动画层
-        self.animation_layer_manager.update(elapsed);
-
-        // 执行动画更新
-        self.begin_animation();
-
-        // 评估所有层并混合结果
-        self.animation_layer_manager
-            .evaluate_normalized(&mut self.bone_manager, &mut self.morph_manager);
-
-        // 应用 VPD 骨骼姿势覆盖（在动画评估后）
-        self.apply_vpd_bone_overrides();
-
-        // 自动眨眼
-        self.update_auto_blink(elapsed);
-
-        // VR 模式下跳过普通头部旋转，由 VR IK 接管
-        if !self.vr_enabled {
-            self.apply_head_rotation();
-        }
-        self.update_morph_animation();
-
-        // 骨骼更新（物理前）— 先计算当前帧全局变换
-        self.update_node_animation(false);
-
-        // VR IK 求解（在全局变换计算之后，确保用当前帧的骨骼位置）
-        if self.vr_enabled {
-            let strength = self.vr_ik_strength;
-            if let Some(frame) = self.vr_tracking_frame {
-                self.vr_debug_state = self.vr_ik_solver.solve_tracking_frame(
-                    &mut self.bone_manager,
-                    &frame,
-                    strength,
-                );
-            } else {
-                let tracking = self.vr_tracking_data;
-                self.vr_ik_solver
-                    .solve(&mut self.bone_manager, &tracking, strength);
-                self.vr_debug_state = VrDebugState::default();
-            }
-        }
-
-        // 物理更新
-        self.update_physics(elapsed);
-
-        // 骨骼更新（物理后）
-        self.update_node_animation(true);
-
-        // 清除物理骨骼保护（允许下一帧重新计算）
-        self.end_physics_update();
-
-        self.end_animation();
-
-        // 应用矩阵插值过渡
-        self.apply_transition_blend(elapsed);
-
-        self.update();
     }
 
     /// 应用矩阵插值过渡
@@ -1823,6 +1775,11 @@ impl MmdModel {
         self.animation_layer_manager.update(elapsed);
         self.begin_animation();
         self.bone_manager.reset_all_ik_enabled();
+        // While the ragdoll drives the body, IK is disabled so leg/hand IK
+        // cannot overwrite the physical pose.
+        if self.ragdoll.is_some() {
+            self.bone_manager.set_all_ik_enabled(false);
+        }
 
         self.animation_layer_manager
             .evaluate_normalized(&mut self.bone_manager, &mut self.morph_manager);
@@ -1840,9 +1797,21 @@ impl MmdModel {
 
         self.update_morph_animation();
 
+        // 死亡布娃娃步进 + 回写（放在骨骼全局更新之前：
+        // 接管骨被 update_transforms 跳过，其从属骨由 pass 1 从新姿势传播）。
+        // 顺序与 1.20.1 权威实现保持一致（ragdoll/mod.rs 里 step 的契约也是这么写的）。
+        if let Some(ragdoll) = self.ragdoll.as_mut() {
+            // 冻结时不步进也不回写：接管骨的全局矩阵停留在最后一次物理姿势
+            if !self.ragdoll_frozen {
+                ragdoll.step(&mut self.bone_manager, elapsed);
+            }
+        }
+
         self.update_node_animation(false);
 
-        if self.vr_enabled {
+        // 布娃娃接管骨骼时不做 VR IK：否则 IK 会去改手臂/头部骨骼，
+        // 和布娃娃刚回写的姿势打架（表现为手臂被拽回、抖动）。
+        if self.vr_enabled && self.ragdoll.is_none() {
             let strength = self.vr_ik_strength;
             if let Some(frame) = self.vr_tracking_frame {
                 self.vr_debug_state = self.vr_ik_solver.solve_tracking_frame(
@@ -1877,7 +1846,12 @@ impl MmdModel {
             runtime_state.refresh_output(model);
         });
 
-        self.apply_transition_blend(elapsed);
+        // 布娃娃激活时跳过矩阵过渡混合（它会向旧快照插值，与物理姿势冲突）。
+        // 与 1.20.1 权威实现保持一致：死亡那一刻恰好是"切 Die 动画 + 启物理"的时刻，
+        // 此时若矩阵过渡还在进行，尸体会被向旧姿势拉扯回去。
+        if self.ragdoll.is_none() {
+            self.apply_transition_blend(elapsed);
+        }
 
         self.update();
     }
@@ -1934,6 +1908,88 @@ impl MmdModel {
     }
 
     /// 获取物理系统是否已初始化
+    /// 启用死亡布娃娃（从当前骨骼姿势构建刚体）
+    ///
+    /// 调用时机：骨骼全局矩阵为死亡姿势时（Java 在实体死亡的下一帧 Update 之前）。
+    /// v1 仅支持 PMX 模型（VRM 走独立 vrm_runtime 管线）。
+    pub fn enable_ragdoll(&mut self, params: crate::ragdoll::RagdollParams) -> bool {
+        if self.is_vrm {
+            log::debug!("[Ragdoll] VRM 模型暂不支持布娃娃");
+            return false;
+        }
+        if self.ragdoll.is_some() {
+            return true;
+        }
+        match crate::ragdoll::MmdRagdoll::new(self, params) {
+            Some(ragdoll) => {
+                self.bone_manager
+                    .set_ragdoll_bone_indices(ragdoll.ragdoll_bone_indices());
+                self.ragdoll = Some(ragdoll);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// 禁用并拆除布娃娃（骨骼恢复动画驱动）
+    pub fn disable_ragdoll(&mut self) {
+        if self.ragdoll.take().is_some() {
+            self.bone_manager.clear_ragdoll_bone_indices();
+        }
+    }
+
+    /// 布娃娃是否激活
+    pub fn is_ragdoll_active(&self) -> bool {
+        self.ragdoll.is_some()
+    }
+
+    /// 设置布娃娃地面高度（模型局部单位）
+    pub fn ragdoll_set_ground_y(&mut self, ground_local_y: f32) {
+        if let Some(ref mut ragdoll) = self.ragdoll {
+            ragdoll.set_ground_y(ground_local_y);
+        }
+    }
+
+    /// 施加速度增量（世界 m/s + yaw，内部换算到模型局部 Bullet 空间）
+    pub fn ragdoll_apply_world_velocity_delta(
+        &mut self,
+        vx: f32,
+        vy: f32,
+        vz: f32,
+        yaw: f32,
+        world_to_model_scale: f32,
+        upper_body_only: bool,
+    ) {
+        let Some(ragdoll) = self.ragdoll.as_mut() else {
+            return;
+        };
+        // 世界 → 模型局部（R^T·v，R 与 set_model_position_and_yaw 的旋转一致）
+        let cos_y = yaw.cos();
+        let sin_y = yaw.sin();
+        let lx = cos_y * vx + sin_y * vz;
+        let lz = -sin_y * vx + cos_y * vz;
+        let scale = if world_to_model_scale.abs() > 1e-6 {
+            world_to_model_scale
+        } else {
+            0.09
+        };
+        let delta = Vec3::new(lx / scale, vy / scale, -lz / scale);
+        ragdoll.apply_velocity_delta(delta, upper_body_only);
+    }
+
+    /// 布娃娃调试信息（JSON）
+    /// 冻结/解冻布娃娃（冻结 = 姿势保持 + 跳过步进，性能保持期用）
+    pub fn set_ragdoll_frozen(&mut self, frozen: bool) {
+        self.ragdoll_frozen = frozen;
+    }
+
+    pub fn ragdoll_debug_info(&self) -> String {
+        match &self.ragdoll {
+            Some(r) => r.debug_info(),
+            None => String::from("{\"active\": false}"),
+        }
+    }
+
     pub fn has_physics(&self) -> bool {
         self.physics.is_some()
     }
