@@ -1,7 +1,5 @@
 package com.shiroha.mmdskin.config;
 
-import net.minecraft.client.Minecraft;
-
 import java.io.File;
 import java.nio.file.Path;
 
@@ -49,15 +47,14 @@ public final class PathConstants {
     /**
      * 游戏根目录。
      *
-     * <p>优先走 {@link GameDirectoryProvider}（平台层注入，专用服务器也拿得到）。
-     * 没注入时才退回客户端的 {@code Minecraft.gameDirectory}——那条路径在专用服务器上
-     * 会 NPE（服主根本没有客户端 Minecraft 实例），所以服务端场景必须先注入 provider。
+     * <p><b>本类不得 import 任何 {@code net.minecraft.client.*} 的类</b>：
+     * 它在服务端也会被执行（模型分发要读 {@code 3d-skin/EntityPlayer} 目录），
+     * 而专用服务器 jar 里根本没有 {@code net.minecraft.client.Minecraft} 这个类，
+     * 一旦引用就是 NoClassDefFoundError。游戏目录由平台层通过
+     * {@link GameDirectoryProvider} 注入（Fabric 的 {@code onInitialize()}）。
      */
     public static String getGameDirectory() {
-        if (GameDirectoryProvider.hasProvider()) {
-            return GameDirectoryProvider.get().getAbsolutePath();
-        }
-        return Minecraft.getInstance().gameDirectory.getAbsolutePath();
+        return GameDirectoryProvider.get().getAbsolutePath();
     }
 
     public static File getSkinRootDir() {

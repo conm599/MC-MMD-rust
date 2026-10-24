@@ -70,6 +70,18 @@ dependencies {
 	// JLayer - MP3 解码器（舞台模式音频播放），运行时由本平台包私有化
 	implementation "javazoom:jlayer:1.0.1"
 	include "javazoom:jlayer:1.0.1"
+
+	// 单元测试：模型分发的路径安全 / 分块帧编解码 / 临时目录语义
+	// （测试代码不依赖 Minecraft，可直接在纯 JVM 里跑）
+	testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+	useJUnitPlatform()
+	testLogging {
+		events "passed", "skipped", "failed"
+	}
 }
 
 processResources {
@@ -102,6 +114,12 @@ sourceSets {
             // 26.3 移植时把它排除了（上游 1.21.5 是 Architectury 多模块，没有这个 exclude），
             // 结果语言文件没进 jar → 界面全部显示原始翻译键（gui.mmdskin.xxx）。
             exclude 'pack.mcmeta'
+        }
+    }
+    test {
+        java {
+            // 原 common 模块的测试目录同样挂进来
+            srcDir '../common/src/test/java'
         }
     }
 }

@@ -8,6 +8,7 @@ import com.shiroha.mmdskin.client.gpu.MmdRenderPipelines;
 import com.shiroha.mmdskin.compat.iris.IrisCompatibility;
 import com.shiroha.mmdskin.config.UIConstants;
 import com.shiroha.mmdskin.debug.client.PerformanceHud;
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.fabric.network.MmdSkinNetworkPack;
 import com.shiroha.mmdskin.fabric.compat.YsmCompat;
 import com.shiroha.mmdskin.player.runtime.MmdSkinRendererPlayerHelper;
@@ -142,6 +143,8 @@ final class FabricClientRuntimeHooks {
         MmdClientRenderRuntime.current().tick();
         StageAnimSyncHelper.tickPending();
         BoneSyncManager.tickLocal();
+        // 模型分发的自动下载扫描（只下半径内玩家正在用的、服务器授权过的模型）
+        ModelDistributionClient.tickAutoDownload(minecraft);
 
         if (!player.isAlive()) {
             MMDCameraController controller = MMDCameraController.getInstance();
@@ -192,5 +195,7 @@ final class FabricClientRuntimeHooks {
         MmdSkinRendererPlayerHelper.onDisconnect();
         BoneSyncManager.onDisconnect();
         StageSessionService.getInstance().onDisconnect();
+        // 断线时清掉上一台服务器的分发清单，别把别的服的模型留在列表里
+        ModelDistributionClient.onDisconnect();
     }
 }
