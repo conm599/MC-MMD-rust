@@ -2,6 +2,7 @@
 package com.shiroha.mmdskin.ui.selector;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.shiroha.mmdskin.distrib.ModelDistributionClient;
 import com.shiroha.mmdskin.ui.chrome.TranslucentTrayChrome;
 import com.shiroha.mmdskin.ui.selector.application.ModelSelectionApplicationService;
 import net.minecraft.client.Minecraft;
@@ -35,9 +36,16 @@ public class ModelSelectorScreen extends Screen {
 
     private final List<ModelSelectionApplicationService.ModelCard> modelCards = new ArrayList<>();
 
+    /** 列表顶部"服务器模型分发"入口的哨兵卡片名（不是真的模型）。 */
+    private static final String DISTRIBUTION_CARD_KEY = "__mmd_distribution_entry__";
+
     private String currentModel;
     private boolean pendingClose;
     private String pendingSettingsModel;
+    private boolean pendingDistribution;
+    private int distributionCardIndex = -1;
+    private int distributionCount;
+    private long lastDistributionSyncMs;
     private float targetScroll;
     private float animatedScroll;
     private int hoveredCard = -1;
@@ -53,6 +61,8 @@ public class ModelSelectorScreen extends Screen {
 
     public ModelSelectorScreen() {
         super(Component.translatable("gui.mmdskin.model_selector"));
+        // 分发核心不认识 UI 类，责任条款提示页由 UI 层注入回调
+        DistributionNoticeScreen.installNoticeOpener();
         reloadModelCards();
     }
 
@@ -105,6 +115,10 @@ public class ModelSelectorScreen extends Screen {
         }
 
         if (layout.listBox.contains(mouseX, mouseY) && hoveredCard >= 0 && hoveredCard < modelCards.size()) {
+            if (hoveredCard == distributionCardIndex) {
+                pendingDistribution = true;
+                return true;
+            }
             selectModel(modelCards.get(hoveredCard).displayName());
             return true;
         }
@@ -139,9 +153,11 @@ public class ModelSelectorScreen extends Screen {
         TranslucentTrayChrome.drawPanel(guiGraphics, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h);
 
         guiGraphics.text(this.font, this.title.getString(), layout.header.x, layout.header.y + 1, TranslucentTrayChrome.TITLE_TEXT, false);
+        // 列表里可能多了一条"服务器分发"哨兵卡片，计数时要把它和"默认"那条一起扣掉
+        int pseudoCards = distributionCardIndex >= 0 ? 2 : 1;
         String stats = Component.translatable(
                 "gui.mmdskin.model_selector.stats",
-                Math.max(0, modelCards.size() - 1),
+                Math.max(0, modelCards.size() - pseudoCards),
                 shorten(currentModel, 8)
         ).getString();
         guiGraphics.text(this.font, stats, layout.header.x, layout.header.y + 10, TranslucentTrayChrome.SUBTITLE_TEXT, false);
@@ -185,6 +201,7 @@ public class ModelSelectorScreen extends Screen {
     }
 
     private void updateLayout() {
+        syncDistributionEntry();
         int panelWidth = Mth.clamp(Math.round(this.width * 0.14f), MIN_WINDOW_WIDTH, MAX_WINDOW_WIDTH);
         int panelHeight = Math.max(MIN_WINDOW_HEIGHT, this.height - WINDOW_MARGIN * 2);
         int panelX = this.width - panelWidth - WINDOW_MARGIN;
@@ -262,7 +279,44 @@ public class ModelSelectorScreen extends Screen {
     private void reloadModelCards() {
         modelCards.clear();
         modelCards.addAll(SERVICE.loadModelCards());
+        // "服务器分发"哨兵卡片由 syncDistributionEntry 统一维护，这里先把状态清掉
+        distributionCardIndex = -1;
+        distributionCount = -1;
         currentModel = SERVICE.getCurrentModel();
+    }
+
+    /**
+     * 同步列表顶部的"服务器模型分发"入口。
+     *
+     * <p>服务器可能在本界面打开之后才把清单推过来，所以隔一小段时间对一次账：
+     * 数量变了就重挂哨兵卡片，N 不会停在旧值上。
+     */
+    private void syncDistributionEntry() {
+        long now = System.currentTimeMillis();
+        if (now - lastDistributionSyncMs < 1000L) {
+            return;
+        }
+        lastDistributionSyncMs = now;
+        int count = ModelDistributionClient.availableModels().size();
+        if (count == distributionCount && (distributionCardIndex >= 0) == (count > 0)) {
+            return;
+        }
+        distributionCount = count;
+        if (distributionCardIndex >= 0) {
+            modelCards.remove(distributionCardIndex);
+            distributionCardIndex = -1;
+        }
+        if (count <= 0) {
+            return;
+        }
+        // 哨兵卡片只有在"没有同名真实模型"时才插进去，免得跟真模型撞脸
+        for (ModelSelectionApplicationService.ModelCard card : modelCards) {
+            if (DISTRIBUTION_CARD_KEY.equals(card.displayName())) {
+                return;
+            }
+        }
+        modelCards.add(0, new ModelSelectionApplicationService.ModelCard(DISTRIBUTION_CARD_KEY, false));
+        distributionCardIndex = 0;
     }
 
     private void refreshModels() {
@@ -287,6 +341,13 @@ public class ModelSelectorScreen extends Screen {
     }
 
     private void flushPendingActions(Minecraft minecraft) {
+        if (pendingDistribution && minecraft.gui.screen() == this) {
+            pendingDistribution = false;
+            minecraft.gui.setScreen(new DistributionNoticeScreen(this,
+                    ModelDistributionClient.availableModels(),
+                    ModelDistributionClient.serverRateLimitKbPerSec()));
+            return;
+        }
         if (pendingSettingsModel != null && minecraft.gui.screen() == this) {
             String modelName = pendingSettingsModel;
             pendingSettingsModel = null;
@@ -307,7 +368,13 @@ public class ModelSelectorScreen extends Screen {
         }
     }
 
-    private static String buildCardLabel(ModelSelectionApplicationService.ModelCard card) {
+    private String buildCardLabel(ModelSelectionApplicationService.ModelCard card) {
+        if (DISTRIBUTION_CARD_KEY.equals(card.displayName())) {
+            String label = Component.translatable("gui.mmdskin.distribution.entry", distributionCount).getString();
+            // 卡片有固定宽度，超长要截断，否则会顶出屏幕
+            int maxWidth = Math.max(20, layout.listBox.w - 11);
+            return this.font.plainSubstrByWidth(label, maxWidth);
+        }
         String name = shorten(card.displayName(), 14);
         return card.configurable() ? name : name + " (Default)";
     }
