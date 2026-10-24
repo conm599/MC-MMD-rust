@@ -20,8 +20,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: 1.99.1
 
       - name: Build Windows x64 DLL
         run: cargo build --release --manifest-path rust_engine/Cargo.toml
@@ -39,9 +45,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: aarch64-pc-windows-msvc
 
       - name: Build Windows ARM64 DLL
@@ -60,8 +71,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: 1.99.1
 
       - name: Build Linux x64 SO
         run: cargo build --release --manifest-path rust_engine/Cargo.toml
@@ -79,9 +96,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: aarch64-unknown-linux-gnu
 
       - name: Install cross-compilation tools
@@ -109,9 +131,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: loongarch64-unknown-linux-gnu
 
       - name: Install LoongArch64 cross-compilation tools
@@ -149,9 +176,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: riscv64gc-unknown-linux-gnu
 
       - name: Install RISC-V 64 cross-compilation tools
@@ -180,9 +212,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: x86_64-apple-darwin
 
       - name: Build macOS x64 dylib
@@ -201,9 +238,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: aarch64-apple-darwin
 
       - name: Build macOS ARM64 dylib
@@ -222,9 +264,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: aarch64-linux-android
 
       - name: Setup Android NDK
@@ -255,9 +302,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
         with:
+          toolchain: 1.99.1
           targets: x86_64-linux-android
 
       - name: Setup Android NDK
@@ -368,8 +420,14 @@ jobs:
         with:
           submodules: recursive
 
+      # Rust 工具链固定版本，不用 @stable：
+      # vendored 的 deps/mmd-rs 顶部有 `#![deny(warnings)]`，Rust 新版本随便加一条
+      # deprecation 警告就能让整个构建失败 —— rustc 1.99.1 就把 `use std::usize`
+      # 判为 deprecated，实际已经踩过一次。固定版本同时保证发布用的原生库可复现。
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: 1.99.1
 
       - name: Extract mod version
         id: version
