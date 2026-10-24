@@ -87,6 +87,15 @@ test {
 processResources {
 	inputs.property "version", project.version
 
+	// 原生库有两个来源：Gradle 的 copyRustNatives 任务写进
+	// fabric/build/generated/resources/mmdskin/，而 CI 还会把同一批原生库
+	// cp 到 common/src/main/resources/natives/（common 的资源目录也挂在本模块的
+	// resources sourceSet 上）。两个 source root 出现同一个相对路径时，
+	// Gradle 7+ 的 processResources 默认 DuplicatesStrategy.FAIL 会直接让构建失败
+	// （实测：Entry natives/windows-x64/mmd_engine.dll is a duplicate）。
+	// 两份内容是同一个 cargo 产物，用 INCLUDE 覆盖即可。
+	duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
 	filesMatching("fabric.mod.json") {
 		expand "version": project.version
 	}

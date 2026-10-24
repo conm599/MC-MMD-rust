@@ -87,6 +87,11 @@ sourceSets {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+	// 与 fabric 端同理：原生库有两个来源（copyRustNativesNeoForge 任务 +
+	// CI cp 到 common/src/main/resources/natives/），同相对路径重复会让
+	// processResources 因 DuplicatesStrategy.FAIL 失败。两份是同一个 cargo 产物。
+	duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
 	def replaceProperties = [
 		minecraft_version: '26.3',
 		minecraft_version_range: '[26.3,26.4)',
