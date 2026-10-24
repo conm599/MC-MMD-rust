@@ -63,6 +63,19 @@ allprojects {
 		options.release = 25
 	}
 
+	// 原生库有两个来源：Gradle 的 copyRustNatives 任务写进
+	// <module>/build/generated/resources/mmdskin/natives/<平台>/，
+	// 而 CI 还会把同一批原生库 cp 到 common/src/main/resources/natives/<平台>/。
+	// common 的资源目录和上面那个生成目录同时挂在同一模块的 resources 上，
+	// 于是同一个相对路径出现两次：
+	//   * processResources（Copy 任务）-> 在 fabric/neoforge 的 build.gradle 里
+	//     单独设 DuplicatesStrategy.INCLUDE；
+	//   * sourcesJar（Jar 任务，直接打包 sourceSets 的**源**目录）-> 在这里统一设。
+	// 两份内容是同一个 cargo 产物，覆盖即可。
+	tasks.withType(Jar).configureEach {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+
 	java {
 		toolchain {
 			languageVersion = JavaLanguageVersion.of(25)
