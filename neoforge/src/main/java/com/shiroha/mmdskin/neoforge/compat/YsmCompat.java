@@ -59,7 +59,9 @@ public final class YsmCompat {
         private static final Bindings UNAVAILABLE = new Bindings(null, null, null, null, null, null);
 
         private static Bindings load() {
-            if (!ModList.get().isLoaded("yes_steve_model")) {
+            // ModList 在 ModList 初始化之前 get() 会返回 null，这里要防一手。
+            ModList modList = ModList.get();
+            if (modList == null || !modList.isLoaded("yes_steve_model")) {
                 return UNAVAILABLE;
             }
             try {
