@@ -27,24 +27,25 @@ public abstract class MouseHandlerMixin {
     @Shadow private double accumulatedDX;
     @Shadow private double accumulatedDY;
 
-    /** 鼠标在窗口里的原始像素坐标（GUI 坐标要自己换算）。 */
-    @Shadow private double xpos;
-    @Shadow private double ypos;
+    /**
+     * 鼠标位置的 GUI 坐标换算 —— 直接借用游戏自己的实现。
+     *
+     * <p><b>为什么必须用游戏的：</b>26.3 里 {@code MouseHandler.getScaledXPos} 的算法是
+     * {@code 原始像素 × getGuiScaledWidth() ÷ getScreenWidth()}。
+     * 之前这里自己手写成了 {@code 原始像素 × Screen.width ÷ getGuiScaledWidth()}，
+     * <b>乘除颠倒</b>：在 854×480、GUI scale=2 的实例上 {@code Screen.width} 恰好等于
+     * {@code getGuiScaledWidth()}（都是 427），公式退化成"直接返回原始像素坐标"，
+     * 正好是正确值的两倍 —— 于是两个按钮的点击<b>永远判定为未命中</b>
+     * （看得见、点不动）。{@code Gui} 渲染屏幕时传的 mouseX/mouseY 用的也是
+     * {@code getScaledXPos}，所以悬停高亮一直是对的，只有判定算错。
+     *
+     * <p>直接 shadow 游戏的方法，保证判定坐标与渲染坐标同源，不可能再分叉。
+     */
+    @Shadow
+    public abstract double getScaledXPos(com.mojang.blaze3d.platform.Window window);
 
-    /** 死亡屏按钮的命中判定用的 GUI 坐标（与 Screen 的 mouseX/mouseY 同一套换算）。 */
-    @Unique
-    private double mmd$scaledMouseX(Minecraft minecraft, net.minecraft.client.gui.screens.Screen screen) {
-        com.mojang.blaze3d.platform.Window window = minecraft.getWindow();
-        double scaled = window.getGuiScaledWidth();
-        return scaled <= 0.0D ? this.xpos : this.xpos * (double) screen.width / scaled;
-    }
-
-    @Unique
-    private double mmd$scaledMouseY(Minecraft minecraft, net.minecraft.client.gui.screens.Screen screen) {
-        com.mojang.blaze3d.platform.Window window = minecraft.getWindow();
-        double scaled = window.getGuiScaledHeight();
-        return scaled <= 0.0D ? this.ypos : this.ypos * (double) screen.height / scaled;
-    }
+    @Shadow
+    public abstract double getScaledYPos(com.mojang.blaze3d.platform.Window window);
 
     /**
      * 死亡屏劫持的点击处理：右下角「自由观战」/「复活」两个按钮。
@@ -64,7 +65,7 @@ public abstract class MouseHandlerMixin {
             Minecraft minecraft = Minecraft.getInstance();
             net.minecraft.client.gui.screens.Screen screen = minecraft.gui.screen();
             int index = DeathScreenButtons.indexAt(
-                    mmd$scaledMouseX(minecraft, screen), mmd$scaledMouseY(minecraft, screen),
+                    getScaledXPos(minecraft.getWindow()), getScaledYPos(minecraft.getWindow()),
                     screen.width, screen.height);
             if (index >= 0) {
                 if (DeathScreenButtons.actionOf(index) == DeathScreenButtons.Action.FREE_LOOK) {
