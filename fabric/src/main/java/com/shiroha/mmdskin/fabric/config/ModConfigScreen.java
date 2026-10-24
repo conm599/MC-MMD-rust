@@ -519,7 +519,7 @@ public final class ModConfigScreen {
         category.addEntry(entryBuilder
                 .startIntSlider(
                         Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds"),
-                        data.ragdollPhysicsKeepSeconds, 0, 300)
+                        data.ragdollPhysicsKeepSeconds, 0, 3600)
                 .setDefaultValue(60)
                 .setTooltip(Component.translatable("gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.tooltip"))
                 .setTextGetter(value -> value.intValue() == 0

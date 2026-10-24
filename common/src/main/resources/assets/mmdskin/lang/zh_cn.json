@@ -2,8 +2,6 @@
   "key.categories.mmdskin": "MMD皮肤",
   "key.mmdskin.config_wheel": "配置轮盘",
   "gui.mmdskin.config_wheel": "配置轮盘",
-  "gui.mmdskin.death_screen_hint": "§e单击§r 自由观战 · §e双击§r 复活",
-  "gui.mmdskin.death_screen_hint_observe": "自由观战（鼠标环视 / 滚轮缩放） · 双击左键：复活",
   "gui.mmdskin.config.model_switch": "模型切换",
   "gui.mmdskin.config.action_select": "动作选择",
   "gui.mmdskin.config.material_control": "材质控制",
@@ -21,7 +19,6 @@
   "gui.mmdskin.mod_settings.gpu_skinning.tooltip": "使用 RenderPipeline 顶点着色器蒙皮；不可用时自动回退 CPU",
   "gui.mmdskin.mod_settings.model_pool_max": "模型池最大数量",
   "gui.mmdskin.mod_settings.model_pool_max.tooltip": "最大缓存模型数量，超出后自动清理",
-
   "gui.mmdskin.mod_settings.category.toon": "3渲2设置",
   "gui.mmdskin.mod_settings.toon_enabled": "启用 3渲2",
   "gui.mmdskin.mod_settings.toon_enabled.tooltip": "启用卡通渲染效果（色阶化光照、描边、边缘光）",
@@ -47,7 +44,6 @@
   "gui.mmdskin.mod_settings.toon_outline_g": "描边色 G",
   "gui.mmdskin.mod_settings.toon_outline_b": "描边色 B",
   "gui.mmdskin.mod_settings.toon_outline_color.tooltip": "描边颜色",
-  
   "gui.mmdskin.mod_settings.category.physics": "物理引擎设置（Bullet3）",
   "gui.mmdskin.mod_settings.physics_enabled": "启用物理模拟",
   "gui.mmdskin.mod_settings.physics_enabled.tooltip": "关闭后头发、裙子等将不再受物理影响",
@@ -75,18 +71,15 @@
   "gui.mmdskin.mod_settings.first_person_camera_forward_offset.tooltip": "调整相机在第一人称下的前后位置。值越大相机越靠前，值越小相机越靠后。",
   "gui.mmdskin.mod_settings.first_person_camera_vertical_offset": "第一人称相机上下偏移",
   "gui.mmdskin.mod_settings.first_person_camera_vertical_offset.tooltip": "调整相机在第一人称下的上下位置。值越大相机越靠上，值越小相机越靠下。",
-  
   "gui.mmdskin.action_wheel": "动作选择轮盘",
   "gui.mmdskin.select_action": "选择动作",
   "gui.mmdskin.model_selector": "模型选择",
   "gui.mmdskin.action_config": "动作轮盘配置",
   "gui.mmdskin.rescan": "重新扫描",
-  
   "key.mmdskin.morph_wheel": "表情轮盘",
   "gui.mmdskin.morph_wheel": "表情选择轮盘",
   "gui.mmdskin.morph_config": "表情轮盘配置",
   "gui.mmdskin.reset_morph": "重置表情",
-  
   "gui.mmdskin.stage.cinematic": "影院模式",
   "gui.mmdskin.stage.start": "开始",
   "gui.mmdskin.stage.waiting_host": "等待房主开始...",
@@ -124,13 +117,11 @@
   "gui.mmdskin.stage.off": "关",
   "gui.mmdskin.follow.join_hint": "加入 %s 的舞蹈",
   "gui.mmdskin.follow.exit_hint": "按 ESC 退出跟随",
-
   "gui.mmdskin.mod_settings.texture_cache_budget": "纹理缓存预算",
   "gui.mmdskin.mod_settings.texture_cache_budget.tooltip": "纹理缓存的VRAM软预算（MB）。仅约束未被引用的待释放纹理，不影响活跃纹理。低值节省VRAM，高值加速模型切换",
   "gui.mmdskin.mod_settings.category.debug": "调试设置",
   "gui.mmdskin.mod_settings.debug_hud": "性能调试 HUD",
   "gui.mmdskin.mod_settings.debug_hud.tooltip": "在屏幕左上角显示模型的内存/显存占用信息",
-
   "gui.mmdskin.mod_settings.category.vr": "VR 联动设置",
   "gui.mmdskin.mod_settings.vr_enabled": "启用 VR 联动",
   "gui.mmdskin.mod_settings.vr_enabled.tooltip": "启用后 VR 玩家的头部和手部追踪将驱动 MMD 模型骨骼（需要安装 Vivecraft）",
@@ -140,13 +131,11 @@
   "gui.mmdskin.mod_settings.mob_replacement.choose": "选择",
   "gui.mmdskin.mod_settings.mob_replacement.reset": "重置",
   "gui.mmdskin.mod_settings.mob_replacement.vanilla": "原版渲染",
-
   "gui.mmdskin.mod_settings.category.distribution": "模型分发",
   "gui.mmdskin.mod_settings.auto_download_nearby": "自动下载周围玩家的模型",
   "gui.mmdskin.mod_settings.auto_download_nearby.tooltip": "只下载半径内玩家正在使用、且服务器管理员已授权分发的模型；不会批量下载服务器上的全部模型。首次触发前会先向你说明来源与责任。",
   "gui.mmdskin.mod_settings.auto_download_radius": "自动下载半径",
   "gui.mmdskin.mod_settings.auto_download_radius.tooltip": "只扫描这个距离内的玩家。半径越大，能自动拿到的模型越多，但占用的带宽也越多。",
-
   "key.mmdskin.quick_model_1": "快捷模型 1",
   "key.mmdskin.quick_model_2": "快捷模型 2",
   "key.mmdskin.quick_model_3": "快捷模型 3",
@@ -202,7 +191,6 @@
   "gui.mmdskin.source.model_exclusive": "模型专属",
   "message.mmdskin.player.model_not_found": "§c未找到玩家模型，请先选择一个MMD模型",
   "message.mmdskin.mod_settings.not_initialized": "§c模组设置界面未初始化",
-
   "gui.mmdskin.model_settings.anim_config": "动画",
   "gui.mmdskin.model_anim.title": "动画映射",
   "gui.mmdskin.model_anim.save": "保存",
@@ -366,5 +354,7 @@
   "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds": "尸体物理保持时长",
   "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.tooltip": "启物理后经过该时长冻结尸体物理（姿势保持、跳过模拟，性能优化）；0 = 永久模拟",
   "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.forever": "永久模拟",
-  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value": "%s 秒"
+  "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value": "%s 秒",
+  "gui.mmdskin.death_screen_free_look": "自由观战",
+  "gui.mmdskin.death_screen_revive": "复活"
 }
