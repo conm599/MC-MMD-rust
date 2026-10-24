@@ -25,6 +25,10 @@ public final class PerformanceHud {
     private static final List<HudLine> cachedLines = new ArrayList<>();
     private static long lastRefreshTime;
     private static int cachedMaxWidth;
+    private static boolean reportedFailure;
+
+    private static final org.apache.logging.log4j.Logger LOGGER =
+            org.apache.logging.log4j.LogManager.getLogger(PerformanceHud.class);
 
     private PerformanceHud() {
     }
@@ -33,6 +37,19 @@ public final class PerformanceHud {
         if (!ConfigManager.isDebugHudEnabled()) {
             return;
         }
+        try {
+            renderInternal(graphics);
+        } catch (Throwable exception) {
+            // 调试面板绝对不能把整帧带崩（它只是给开发者看的）。
+            cachedLines.clear();
+            if (!reportedFailure) {
+                reportedFailure = true;
+                LOGGER.warn("性能调试 HUD 采集失败，已停用本帧绘制", exception);
+            }
+        }
+    }
+
+    private static void renderInternal(GuiGraphicsExtractor graphics) {
         Minecraft minecraft = Minecraft.getInstance();
         // 26.3 把 F1「隐藏界面」的状态从 Options.hideGui 挪到了 Hud.isHidden()
         if (minecraft.gui.hud.isHidden() || minecraft.getDebugOverlay().showDebugScreen()) {
