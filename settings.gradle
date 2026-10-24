@@ -39,8 +39,13 @@ dependencyResolutionManagement {
 
 rootProject.name = 'mmdskin'
 
-// 26.3 移植版：单模块（Fabric）。
+// 26.3 移植版：两个平台模块（Fabric / NeoForge）。
 // 原本的 common 模块不再作为独立 Gradle 模块构建，它的源码/资源目录直接挂到
-// fabric 模块的 sourceSet 上（见 fabric/build.gradle），这样既避免 Architectury 的
-// SRG/transform 链路（mcp_config:26.3 在 Mojang 侧不存在），也省掉一次目录搬迁。
+// fabric / neoforge 模块的 sourceSet 上（见各自的 build.gradle），这样既避免
+// Architectury 的 SRG/transform 链路（mcp_config:26.3 在 Mojang 侧不存在），
+// 也省掉一次目录搬迁。
+//
+// 注意：NeoForge 端**不能**用 Architectury —— architectury-neoforge 最高只有
+// 21.0.5（对应 MC 1.21.x），没有 26.x 版本，因此改用官方 net.neoforged.moddev 插件。
 include 'fabric'
+include 'neoforge'
