@@ -356,5 +356,16 @@
   "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.forever": "無期限",
   "gui.mmdskin.mod_settings.ragdoll_physics_keep_seconds.value": "%s 秒",
   "gui.mmdskin.death_screen_free_look": "自由視点",
-  "gui.mmdskin.death_screen_revive": "リスポーン"
+  "gui.mmdskin.death_screen_revive": "リスポーン",
+  "gui.mmdskin.override.entry": "プレイヤーのモデルを指定（自分の画面のみ）",
+  "gui.mmdskin.override.title": "プレイヤーのモデルを指定（自分の画面のみ）",
+  "gui.mmdskin.override.player_name": "プレイヤー名",
+  "gui.mmdskin.override.player_name.hint": "名前を入力、TAB でオンラインのプレイヤーを補完",
+  "gui.mmdskin.override.stats": "候補モデル %s 件・指定 %s 人",
+  "gui.mmdskin.override.target.none": "先に上でプレイヤー名を入力してください",
+  "gui.mmdskin.override.target.unassigned": "%s：自分の画面では元のモデルのまま",
+  "gui.mmdskin.override.target.assigned": "%s：自分の画面では %s が指定されています",
+  "gui.mmdskin.override.no_models": "指定できるモデルがありません",
+  "gui.mmdskin.override.assign": "指定",
+  "gui.mmdskin.override.clear": "指定を解除"
 }

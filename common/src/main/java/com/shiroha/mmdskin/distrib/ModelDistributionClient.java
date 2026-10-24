@@ -114,6 +114,22 @@ public final class ModelDistributionClient {
     }
 
     /**
+     * 服务器当前授权分发的<b>全部</b>模型名（含本地已经有的）。
+     *
+     * <p>「指定玩家模型」用它当候选列表：只有服务器授权分发的模型，
+     * 其他客户端才拿得到（否则别人眼里会静默退回原版皮肤）。
+     */
+    public static List<String> distributableModelNames() {
+        List<String> result = new ArrayList<>();
+        for (ModelDistributionManifest manifest : SUMMARIES.values()) {
+            if (manifest.modelName != null && !manifest.modelName.isBlank()) {
+                result.add(manifest.modelName);
+            }
+        }
+        return result;
+    }
+
+    /**
      * 本地是否已经装了这个模型。
      *
      * <p>看的是模型目录<b>顶层有没有模型文件</b>，不是"目录在不在" ——
@@ -214,6 +230,9 @@ public final class ModelDistributionClient {
         if (minecraft == null || minecraft.player == null || minecraft.level == null) {
             return;
         }
+        // 注意：本地「指定玩家模型」不会被自动下载覆盖 —— 上面的
+        // getPlayerModel() 会先返回本地指定，所以这里自动下载拿到的
+        // 也是"我指定的那个模型"，自动下载会跟着指定走。
         long now = System.currentTimeMillis();
         if (now - lastAutoScanMs < 1000L) {
             return;

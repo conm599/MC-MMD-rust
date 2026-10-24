@@ -39,11 +39,14 @@ public class ModelSelectorScreen extends Screen {
     /** 列表顶部"服务器模型分发"入口的哨兵卡片名（不是真的模型）。 */
     private static final String DISTRIBUTION_CARD_KEY = "__mmd_distribution_entry__";
 
+    /** 列表顶部"本地指定玩家模型"入口的哨兵卡片名（不是真的模型）。 */
+    private static final String OVERRIDE_CARD_KEY = "__mmd_player_override_entry__";
+
     private String currentModel;
     private boolean pendingClose;
     private String pendingSettingsModel;
     private boolean pendingDistribution;
-    private int distributionCardIndex = -1;
+    private boolean pendingForcedAssign;
     private int distributionCount;
     private long lastDistributionSyncMs;
     private float targetScroll;
@@ -115,11 +118,16 @@ public class ModelSelectorScreen extends Screen {
         }
 
         if (layout.listBox.contains(mouseX, mouseY) && hoveredCard >= 0 && hoveredCard < modelCards.size()) {
-            if (hoveredCard == distributionCardIndex) {
+            String cardName = modelCards.get(hoveredCard).displayName();
+            if (OVERRIDE_CARD_KEY.equals(cardName)) {
+                pendingForcedAssign = true;
+                return true;
+            }
+            if (DISTRIBUTION_CARD_KEY.equals(cardName)) {
                 pendingDistribution = true;
                 return true;
             }
-            selectModel(modelCards.get(hoveredCard).displayName());
+            selectModel(cardName);
             return true;
         }
         return true;
@@ -153,8 +161,9 @@ public class ModelSelectorScreen extends Screen {
         TranslucentTrayChrome.drawPanel(guiGraphics, layout.panel.x, layout.panel.y, layout.panel.w, layout.panel.h);
 
         guiGraphics.text(this.font, this.title.getString(), layout.header.x, layout.header.y + 1, TranslucentTrayChrome.TITLE_TEXT, false);
-        // 列表里可能多了一条"服务器分发"哨兵卡片，计数时要把它和"默认"那条一起扣掉
-        int pseudoCards = distributionCardIndex >= 0 ? 2 : 1;
+        // 列表里多了一条"本地指定玩家模型"哨兵，可能还有一条"服务器分发"哨兵，
+        // 计数时要把这些哨兵和"默认"那条一起扣掉
+        int pseudoCards = 2 + (sentinelIndex(DISTRIBUTION_CARD_KEY) >= 0 ? 1 : 0);
         String stats = Component.translatable(
                 "gui.mmdskin.model_selector.stats",
                 Math.max(0, modelCards.size() - pseudoCards),
@@ -280,13 +289,22 @@ public class ModelSelectorScreen extends Screen {
         modelCards.clear();
         modelCards.addAll(SERVICE.loadModelCards());
         // "服务器分发"哨兵卡片由 syncDistributionEntry 统一维护，这里先把状态清掉
-        distributionCardIndex = -1;
         distributionCount = -1;
         currentModel = SERVICE.getCurrentModel();
     }
 
+    /** 找哨兵卡片在列表里的下标；没有则返回 -1。 */
+    private int sentinelIndex(String key) {
+        for (int i = 0; i < modelCards.size(); i++) {
+            if (key.equals(modelCards.get(i).displayName())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     /**
-     * 同步列表顶部的"服务器模型分发"入口。
+     * 同步列表顶部的两个入口哨兵："指定玩家模型"（恒定）与"服务器模型分发"（有可分发模型时才有）。
      *
      * <p>服务器可能在本界面打开之后才把清单推过来，所以隔一小段时间对一次账：
      * 数量变了就重挂哨兵卡片，N 不会停在旧值上。
@@ -298,25 +316,32 @@ public class ModelSelectorScreen extends Screen {
         }
         lastDistributionSyncMs = now;
         int count = ModelDistributionClient.availableModels().size();
-        if (count == distributionCount && (distributionCardIndex >= 0) == (count > 0)) {
+        if (count == distributionCount) {
             return;
         }
         distributionCount = count;
-        if (distributionCardIndex >= 0) {
-            modelCards.remove(distributionCardIndex);
-            distributionCardIndex = -1;
+
+        // 先把旧哨兵摘掉
+        int distributionIndex = sentinelIndex(DISTRIBUTION_CARD_KEY);
+        if (distributionIndex >= 0) {
+            modelCards.remove(distributionIndex);
         }
-        if (count <= 0) {
-            return;
+        int forcedIndex = sentinelIndex(OVERRIDE_CARD_KEY);
+        if (forcedIndex >= 0) {
+            modelCards.remove(forcedIndex);
         }
-        // 哨兵卡片只有在"没有同名真实模型"时才插进去，免得跟真模型撞脸
-        for (ModelSelectionApplicationService.ModelCard card : modelCards) {
-            if (DISTRIBUTION_CARD_KEY.equals(card.displayName())) {
-                return;
+
+        // "本地指定玩家模型"永远在最上面
+        modelCards.add(0, new ModelSelectionApplicationService.ModelCard(OVERRIDE_CARD_KEY, false));
+        if (count > 0) {
+            // 哨兵卡片只有在"没有同名真实模型"时才插进去，免得跟真模型撞脸
+            for (ModelSelectionApplicationService.ModelCard card : modelCards) {
+                if (DISTRIBUTION_CARD_KEY.equals(card.displayName())) {
+                    return;
+                }
             }
+            modelCards.add(1, new ModelSelectionApplicationService.ModelCard(DISTRIBUTION_CARD_KEY, false));
         }
-        modelCards.add(0, new ModelSelectionApplicationService.ModelCard(DISTRIBUTION_CARD_KEY, false));
-        distributionCardIndex = 0;
     }
 
     private void refreshModels() {
@@ -341,6 +366,11 @@ public class ModelSelectorScreen extends Screen {
     }
 
     private void flushPendingActions(Minecraft minecraft) {
+        if (pendingForcedAssign && minecraft.gui.screen() == this) {
+            pendingForcedAssign = false;
+            minecraft.gui.setScreen(new PlayerModelOverrideScreen(this));
+            return;
+        }
         if (pendingDistribution && minecraft.gui.screen() == this) {
             pendingDistribution = false;
             minecraft.gui.setScreen(new DistributionNoticeScreen(this,
@@ -369,6 +399,11 @@ public class ModelSelectorScreen extends Screen {
     }
 
     private String buildCardLabel(ModelSelectionApplicationService.ModelCard card) {
+        if (OVERRIDE_CARD_KEY.equals(card.displayName())) {
+            String label = Component.translatable("gui.mmdskin.override.entry").getString();
+            int maxWidth = Math.max(20, layout.listBox.w - 11);
+            return this.font.plainSubstrByWidth(label, maxWidth);
+        }
         if (DISTRIBUTION_CARD_KEY.equals(card.displayName())) {
             String label = Component.translatable("gui.mmdskin.distribution.entry", distributionCount).getString();
             // 卡片有固定宽度，超长要截断，否则会顶出屏幕
