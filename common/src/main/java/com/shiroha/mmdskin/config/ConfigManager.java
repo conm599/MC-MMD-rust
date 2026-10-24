@@ -23,6 +23,21 @@ public final class ConfigManager {
         return provider != null ? provider.getModelPoolMaxCount() : 20;
     }
 
+    /**
+     * 是否自动下载附近玩家正在使用的模型。
+     *
+     * <p>默认关闭：只下"半径内玩家正在用、且服务器授权分发"的模型，
+     * 不会把服务器上的模型批量拉下来。
+     */
+    public static boolean isAutoDownloadNearbyModels() {
+        return provider != null && provider.isAutoDownloadNearbyModels();
+    }
+
+    /** 自动下载半径（格）。 */
+    public static int getAutoDownloadRadius() {
+        return provider != null ? provider.getAutoDownloadRadius() : 48;
+    }
+
     public static boolean isPerformanceProfilingEnabled() {
         return provider != null ? provider.isPerformanceProfilingEnabled() : false;
     }

@@ -140,6 +140,12 @@
   "gui.mmdskin.mod_settings.mob_replacement.reset": "リセット",
   "gui.mmdskin.mod_settings.mob_replacement.vanilla": "バニラ描画",
 
+  "gui.mmdskin.mod_settings.category.distribution": "モデル配布",
+  "gui.mmdskin.mod_settings.auto_download_nearby": "近くのプレイヤーのモデルを自動取得",
+  "gui.mmdskin.mod_settings.auto_download_nearby.tooltip": "半径内のプレイヤーが実際に使用しているモデルで、かつサーバー管理者が配布を許可したものだけを取得します。サーバー上のモデルをまとめて取得することはありません。初回は出所と責任について説明します。",
+  "gui.mmdskin.mod_settings.auto_download_radius": "自動取得の半径",
+  "gui.mmdskin.mod_settings.auto_download_radius.tooltip": "この距離内のプレイヤーのみを対象にします。半径を大きくすると取得できるモデルが増えますが、帯域も消費します。",
+
   "key.mmdskin.quick_model_1": "クイックモデル 1",
   "key.mmdskin.quick_model_2": "クイックモデル 2",
   "key.mmdskin.quick_model_3": "クイックモデル 3",

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.shiroha.mmdskin.asset.catalog.ModelInfo;
+import com.shiroha.mmdskin.config.ConfigManager;
 import com.shiroha.mmdskin.config.PathConstants;
 import com.shiroha.mmdskin.ui.network.PlayerModelSyncManager;
 import net.minecraft.client.Minecraft;
@@ -169,18 +170,6 @@ public final class ModelDistributionClient {
     private static volatile boolean autoDownloadAccepted;
 
     /**
-     * 自动下载总开关（由配置层注入，默认关闭）。
-     *
-     * <p>26.3 移植：1.20.1 直接读 {@code ConfigManager.isAutoDownloadNearbyModels()}，
-     * 但该配置项在 26.3 还没有（见 spec 阶段 ⑤-5），这里先做成注入式开关，
-     * 保持"分发核心逻辑不依赖配置界面"。
-     */
-    private static volatile boolean autoDownloadEnabled;
-
-    /** 自动下载半径（格），由配置层注入。 */
-    private static volatile double autoDownloadRadius = 48.0D;
-
-    /**
      * 责任条款提示页的打开方式（由 UI 层注入）。
      *
      * <p>26.3 移植：1.20.1 在这里直接 {@code new DistributionNoticeScreen(...)}，
@@ -193,16 +182,6 @@ public final class ModelDistributionClient {
     }
 
     private static volatile NoticeOpener noticeOpener;
-
-    /** 由配置层注入自动下载开关。 */
-    public static void setAutoDownloadEnabled(boolean enabled) {
-        autoDownloadEnabled = enabled;
-    }
-
-    /** 由配置层注入自动下载半径（格）。 */
-    public static void setAutoDownloadRadius(double radius) {
-        autoDownloadRadius = radius;
-    }
 
     /** 由 UI 层注入责任条款提示页的打开方式。 */
     public static void setNoticeOpener(NoticeOpener value) {
@@ -220,9 +199,16 @@ public final class ModelDistributionClient {
      * 自动下载扫描：只看**半径内**的玩家，只下他们正在用的、服务器授权过的、本地还没有的模型。
      *
      * <p>刻意不做"把服务器上所有模型都下下来"——那既没道理也会把带宽吃光。
+     *
+     * <p>26.3 移植：开关与半径都直接读配置层（{@code ConfigManager}），也就是
+     * {@code config.json} 里的 {@code autoDownloadNearbyModels} / {@code autoDownloadRadius}
+     * ——这两个配置项在 26.3 已经落地（见 spec 阶段 ⑤-5），玩家在设置界面改完立刻生效，
+     * 不用重启游戏。分发核心依旧不认识任何 UI 类：责任条款提示页仍然走
+     * {@link NoticeOpener} 注入。
      */
     public static void tickAutoDownload(Minecraft minecraft) {
-        if (!autoDownloadEnabled) {
+        // 开关与半径都来自配置层（config.json）：关掉就完全不自动下载。
+        if (!ConfigManager.isAutoDownloadNearbyModels()) {
             return;
         }
         if (minecraft == null || minecraft.player == null || minecraft.level == null) {
@@ -234,7 +220,8 @@ public final class ModelDistributionClient {
         }
         lastAutoScanMs = now;
 
-        double radius = Math.max(1.0D, autoDownloadRadius);
+        // 半径 <= 0 时按 1 格处理（与 1.20.1 一致：手改配置文件也不会把扫描关掉）。
+        double radius = Math.max(1.0D, ConfigManager.getAutoDownloadRadius());
         double radiusSq = radius * radius;
         for (net.minecraft.world.entity.player.Player player : minecraft.level.players()) {
             if (player == minecraft.player) {

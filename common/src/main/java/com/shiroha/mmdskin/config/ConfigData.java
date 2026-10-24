@@ -27,6 +27,12 @@ public class ConfigData {
     public boolean lightingEnabled = true;
     public boolean gpuSkinningEnabled = true;
     public int modelPoolMaxCount = 20;
+    /** 自动下载附近玩家正在使用的模型（仅限房主授权分发的模型）。 */
+    public boolean autoDownloadNearbyModels = false;
+
+    /** 自动下载的半径（格）。 */
+    public int autoDownloadRadius = 48;
+
     public boolean performanceProfilingEnabled = false;
     public int performanceLogIntervalSeconds = 5;
     public int maxVisibleModelsPerFrame = 20;
@@ -251,6 +257,16 @@ public class ConfigData {
             // 26.3 性能优化新增的"加载前距离闸门"。旧配置补一个默认值：
             // 取值与代码里的默认值一致（行为不变），只是让这个开关在配置文件里看得见、可调。
             root.addProperty("modelLoadMaxDistance", 64.0);
+            changed = true;
+        }
+        if (!root.has("autoDownloadNearbyModels")) {
+            // 1.20.1 的「模型自动下载」配置项在 26.3 落地。旧配置补默认值：
+            // 默认关闭（与 1.20.1 一致），只是让这两个键在配置文件里看得见、可调。
+            root.addProperty("autoDownloadNearbyModels", false);
+            changed = true;
+        }
+        if (!root.has("autoDownloadRadius")) {
+            root.addProperty("autoDownloadRadius", 48);
             changed = true;
         }
         changed |= root.remove("gpuMorphEnabled") != null;

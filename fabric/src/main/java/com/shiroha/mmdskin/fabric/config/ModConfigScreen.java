@@ -42,6 +42,7 @@ public final class ModConfigScreen {
         buildDebugCategory(builder, entryBuilder, data);
         buildVrCategory(builder, entryBuilder, data);
         buildMobReplacementCategory(builder, entryBuilder, data);
+        buildDistributionCategory(builder, entryBuilder, data);
 
         builder.setSavingRunnable(() -> saveConfig(data));
         return builder.build();
@@ -418,6 +419,34 @@ public final class ModConfigScreen {
                 value -> saveMobReplacementSelection(data, entityTypeId, value)
             ));
         }
+    }
+
+    /**
+     * 模型分发分类：自动下载开关与扫描半径。
+     *
+     * <p>1.20.1 的"模型自动下载"在 26.3 落地为普通配置项（控件与文案照抄 1.20.1）。
+     */
+    private static void buildDistributionCategory(ConfigBuilder builder, ConfigEntryBuilder entryBuilder, ConfigData data) {
+        ConfigCategory category = builder.getOrCreateCategory(
+                Component.translatable("gui.mmdskin.mod_settings.category.distribution"));
+
+        category.addEntry(entryBuilder
+                .startBooleanToggle(
+                        Component.translatable("gui.mmdskin.mod_settings.auto_download_nearby"),
+                        data.autoDownloadNearbyModels)
+                .setDefaultValue(false)
+                .setTooltip(Component.translatable("gui.mmdskin.mod_settings.auto_download_nearby.tooltip"))
+                .setSaveConsumer(value -> data.autoDownloadNearbyModels = value)
+                .build());
+
+        category.addEntry(entryBuilder
+                .startIntSlider(
+                        Component.translatable("gui.mmdskin.mod_settings.auto_download_radius"),
+                        data.autoDownloadRadius, 16, 128)
+                .setDefaultValue(48)
+                .setTooltip(Component.translatable("gui.mmdskin.mod_settings.auto_download_radius.tooltip"))
+                .setSaveConsumer(value -> data.autoDownloadRadius = value)
+                .build());
     }
 
     static void saveConfig(ConfigData data) {

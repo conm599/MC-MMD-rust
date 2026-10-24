@@ -3,6 +3,7 @@ package com.shiroha.mmdskin.config;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.nio.file.Path;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigDataTest {
     @Test
@@ -105,6 +107,53 @@ class ConfigDataTest {
 
         try (var files = Files.list(tempDir)) {
             assertFalse(files.anyMatch(path -> path.getFileName().toString().endsWith(".tmp")));
+        }
+    }
+
+    @Test
+    void shouldDefaultAutoDownloadSettingsLikeReferenceBranch() {
+        ConfigData data = new ConfigData();
+
+        // 与 1.20.1 参考实现一致：默认关闭，半径 48 格。
+        assertFalse(data.autoDownloadNearbyModels);
+        assertEquals(48, data.autoDownloadRadius);
+    }
+
+    @Test
+    void shouldAddAutoDownloadKeysToLegacyConfigFile(@TempDir Path tempDir) throws IOException {
+        // 旧配置里没有这两个键（26.3 移植前不存在）。
+        Files.writeString(tempDir.resolve("config.json"), "{\n  \"schemaVersion\": 3\n}", StandardCharsets.UTF_8);
+
+        ConfigData loaded = ConfigData.load(tempDir);
+
+        assertFalse(loaded.autoDownloadNearbyModels);
+        assertEquals(48, loaded.autoDownloadRadius);
+
+        String written = Files.readString(tempDir.resolve("config.json"), StandardCharsets.UTF_8);
+        assertTrue(written.contains("\"autoDownloadNearbyModels\""));
+        assertTrue(written.contains("\"autoDownloadRadius\""));
+    }
+
+    @Test
+    void shouldExposeAutoDownloadSettingsThroughConfigManager() {
+        ConfigData data = new ConfigData();
+        data.autoDownloadNearbyModels = true;
+        data.autoDownloadRadius = 96;
+
+        try {
+            ConfigManager.init(new AbstractMmdSkinConfig(data) {
+            });
+
+            assertTrue(ConfigManager.isAutoDownloadNearbyModels());
+            assertEquals(96, ConfigManager.getAutoDownloadRadius());
+
+            // 没有 provider 时回落到默认值：关闭 + 半径 48。
+            ConfigManager.init(null);
+
+            assertFalse(ConfigManager.isAutoDownloadNearbyModels());
+            assertEquals(48, ConfigManager.getAutoDownloadRadius());
+        } finally {
+            ConfigManager.init(null);
         }
     }
 
