@@ -157,15 +157,34 @@ neoForge { enable { version = "26.3.0.97"; disableRecompilation = true } }
 
 ### 4.4 验证强度与未验证项
 
+**已在 `26.3-NeoForge_26.3.0.95` 实例实机跑通**（模组加载 → 世界渲染 → 模型显示 →
+死亡屏 → 设置界面），期间修掉三个 NeoForge 端独有的问题：
+
+1. **启动即崩**：Mixin 的 PREPARE 阶段早于 FML 初始化 `ModList`，
+   `MmdNeoForgeMixinPlugin` 里 `ModList.get().isLoaded("vivecraft")` 拿到 null → NPE
+   → 整个模组加载失败。改成直接探测目标类在不在。
+2. **MMD 模型一个都不画**：`RegisterRenderPipelinesEvent` 触发时 MC 还没编译任何管线，
+   `activateRegisteredPipelines()` 读到空缓存 → `ready=false` → 渲染路径全 return。
+   改成在资源重载回调里自己编译管线（与 Fabric 同一条路）。
+3. **模型跟着视角甩**：MMD 的模型矩阵是「相机相对」的，必须再乘相机旋转才是视空间坐标。
+   而 26.3 的相机旋转矩阵是在 `LevelRenderer.render` 期间压栈、返回时弹栈的 ——
+   Fabric 的 `END_MAIN` 在压栈还在时触发，NeoForge 的 `AfterLevel` 在压栈已弹后触发，
+   于是 NeoForge 读到**单位阵**。修法：在 `NeoForgeRenderAdapter` 里按 `LevelRenderer`
+   的做法把同一份视图旋转矩阵重新压栈再冲刷世界帧。
+
+第 3 条的修复**只动 `neoforge/` 一个文件**，`common/**` 一行未改，Fabric 端行为零变化。
+
 - ✅ `:neoforge:build` exit 0（compileJava + processResources + jarJar + jar 全绿）
 - ✅ `:fabric:build` 仍 exit 0
+- ✅ NeoForge 实例实机：模组加载无报错、原生库解出、模型渲染正常、
+  死亡屏劫持可用、设置界面文字正常、转视角模型不再甩
 - ✅ 用 ASM 写的注入点校验器把每个 `@Inject` / `@At` / `@Shadow` 按「名字 + 描述符」
   在 `minecraft-patched-26.3.0.97.jar` 里逐条核对，全部 OK
   （NeoForge 26.3 的 mixin fork 不带 mixin 注解处理器，javac 无法校验注入点）
-- ❌ **没有实机运行过**（本机没有 MC 26.3 的 NeoForge 实例）。运行时行为
-  （渲染顺序、事件触发时机、YSM 兼容反射签名）仍需实机确认
 - ⚠️ `disableRecompilation = true` 跳过 NeoForm 反编译/重编译，产物是打过
   NeoForge 二进制补丁的等价 jar，只是没附源码
+- ⚠️ `CustomMorph` / `DefaultMorph` / `SceneModel` 三个目录没有对应的实体类型 →
+  跳过渲染注册。**Fabric 端日志里一模一样**，是模组自身的老毛病，不是移植引入的
 
 
 ---
