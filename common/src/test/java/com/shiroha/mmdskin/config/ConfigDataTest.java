@@ -20,6 +20,7 @@ class ConfigDataTest {
         ConfigData data = new ConfigData();
         data.performanceLogIntervalSeconds = 0;
         data.maxVisibleModelsPerFrame = 0;
+        data.modelLoadMaxDistance = -3.0f;
         data.animationLodMediumDistance = -1.0f;
         data.animationLodFarDistance = 2.0f;
         data.animationLodMediumUpdateInterval = 0;
@@ -32,6 +33,7 @@ class ConfigDataTest {
 
         assertEquals(1, data.performanceLogIntervalSeconds);
         assertEquals(1, data.maxVisibleModelsPerFrame);
+        assertEquals(0.0f, data.modelLoadMaxDistance);
         assertEquals(0.0f, data.animationLodMediumDistance);
         assertEquals(2.0f, data.animationLodFarDistance);
         assertEquals(1, data.animationLodMediumUpdateInterval);
@@ -45,11 +47,14 @@ class ConfigDataTest {
     void shouldFallbackVrStrengthAndKeepMobReplacementMapInitialized() throws Exception {
         ConfigData data = new ConfigData();
         data.vrArmIKStrength = Float.NaN;
+        data.modelLoadMaxDistance = Float.NaN;
         data.mobModelReplacements = null;
 
         invokeNormalize(data);
 
         assertEquals(1.0f, data.vrArmIKStrength);
+        // NaN 必须回退到默认闸门距离，否则距离比较恒不成立（等于永不加载模型）。
+        assertEquals(64.0f, data.modelLoadMaxDistance);
         assertNotNull(data.mobModelReplacements);
     }
 

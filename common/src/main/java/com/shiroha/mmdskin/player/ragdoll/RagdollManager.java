@@ -499,6 +499,46 @@ public final class RagdollManager {
         return false;
     }
 
+    /**
+     * 尸体加载距离闸门。
+     *
+     * <p>{@code modelLoadMaxDistance} &lt;= 0 表示不限制（闸门关闭，等价于旧行为）。
+     * 距离按玩家位置算（相机就在玩家眼睛上，与实体路径的口径一致）。
+     */
+    private static boolean exceedsModelLoadDistance(Corpse corpse) {
+        float maxDistance = ConfigManager.getModelLoadMaxDistance();
+        if (maxDistance <= 0.0F) {
+            return false;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.player == null) {
+            return false;
+        }
+        double dx = corpse.x - minecraft.player.getX();
+        double dy = corpse.y - minecraft.player.getY();
+        double dz = corpse.z - minecraft.player.getZ();
+        return dx * dx + dy * dy + dz * dz > (double) maxDistance * maxDistance;
+    }
+
+    /**
+     * 尸体是否还需要每帧推进模型。
+     *
+     * <p>冻结（{@code physicsFrozen}）后姿势已经定型，引擎侧也不再步进布娃娃，
+     * 继续推进动画只是白烧 CPU（动画求值 + 骨骼矩阵 + 蒙皮）。
+     *
+     * <p>停止的前提是"布娃娃已就绪 || 已冻结"：布娃娃还没就绪时绝不能停推，
+     * 否则远离视线的尸体骨骼永远停在 T-pose，2 秒兜底启物理就会按 T-pose 摊开
+     *（26.3 移植期踩过的坑）。
+     */
+    private static boolean shouldAdvanceCorpse(Corpse corpse) {
+        if (!corpse.ragdollReady && !corpse.physicsFrozen) {
+            // 布娃娃还没就绪：必须继续推进，骨骼要从绑定姿势（T-pose）走出来。
+            return true;
+        }
+        // 已就绪：只有冻结之后才停（冻结 = 姿势定型）。
+        return !corpse.physicsFrozen;
+    }
+
     /** 获取尸体模型；实例被外部销毁时干净复位，等新实例加载后完整重来。 */
     private void touchCache(Corpse corpse) {
         try {
@@ -519,6 +559,13 @@ public final class RagdollManager {
                     corpse.deathAnimStarted = false;
                     corpse.renderedFrames = 0;
                 }
+                return;
+            }
+            // 加载前距离闸门：离玩家太远的尸体不加载模型。
+            // 尸体比实体更贵（一具尸体 = 1 个 native 模型 + 1 个 Bullet 世界），
+            // 而渲染剔除本来就在 64 格之外，太远的尸体加载了也看不见，纯浪费。
+            // 这里只挡"加载"，尸体记录本身保留，玩家走近时再加载。
+            if (exceedsModelLoadDistance(corpse)) {
                 return;
             }
             ModelLease acquired = runtime.acquire(corpse.corpseKey).orElse(null);
@@ -663,11 +710,14 @@ public final class RagdollManager {
             // 无论是否进入视锥都要推进模型：26.3 的动画/物理推进发生在 UpdateModel 里，
             // 只在绘制时推进的话，远离视线的尸体骨骼会一直停在绑定姿势（T-pose），
             // 后面按"2 秒兜底"启物理就会按 T-pose 摊开。
-            runtime.frameUpdater().updateOnce(frameId, instance, snapshot, deltaSeconds);
-            // 计数口径是"推进过的帧数"而不是"真正绘制过的帧数"：
-            // 26.3 把推进与绘制解耦了，远离视线的尸体每帧也在推进动画/骨骼，
-            // 却要等满 2 秒兜底才启物理，多余的延迟。
-            corpse.renderedFrames++;
+            // 例外：冻结后的尸体不再推进（姿势已定型，继续推进没有收益）。
+            if (shouldAdvanceCorpse(corpse)) {
+                runtime.frameUpdater().updateOnce(frameId, instance, snapshot, deltaSeconds);
+                // 计数口径是"推进过的帧数"而不是"真正绘制过的帧数"：
+                // 26.3 把推进与绘制解耦了，远离视线的尸体每帧也在推进动画/骨骼，
+                // 却要等满 2 秒兜底才启物理，多余的延迟。
+                corpse.renderedFrames++;
+            }
             if (!visible) {
                 continue;
             }

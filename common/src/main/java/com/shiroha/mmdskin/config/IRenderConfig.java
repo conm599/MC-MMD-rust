@@ -12,7 +12,10 @@ public interface IRenderConfig {
 
     default int getPerformanceLogIntervalSeconds() { return 5; }
 
-    default int getMaxVisibleModelsPerFrame() { return 10; }
+    default int getMaxVisibleModelsPerFrame() { return 20; }
+
+    /** 加载前距离闸门（格）：超过且未加载则不加载模型；0 = 不限制。 */
+    default float getModelLoadMaxDistance() { return 64.0f; }
 
     default float getAnimationLodMediumDistance() { return 24.0f; }
 

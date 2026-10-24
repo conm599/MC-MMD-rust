@@ -29,7 +29,15 @@ public class ConfigData {
     public int modelPoolMaxCount = 20;
     public boolean performanceProfilingEnabled = false;
     public int performanceLogIntervalSeconds = 5;
-    public int maxVisibleModelsPerFrame = 10;
+    public int maxVisibleModelsPerFrame = 20;
+    /**
+     * 加载前距离闸门（格）。
+     *
+     * <p>超过这个距离且模型<b>尚未加载</b>时不触发加载（PMX 解析 + 独立 Bullet 世界 +
+     * 4 个 GPU buffer 全部省掉）；已加载的模型继续正常渲染，走近时不会闪回原版皮肤。
+     * 0 = 不限制（闸门关闭，等价于旧行为）。
+     */
+    public float modelLoadMaxDistance = 64.0f;
     public float animationLodMediumDistance = 24.0f;
     public float animationLodFarDistance = 48.0f;
     public int animationLodMediumUpdateInterval = 2;
@@ -166,6 +174,10 @@ public class ConfigData {
         modelPoolMaxCount = Math.max(1, modelPoolMaxCount);
         performanceLogIntervalSeconds = Math.max(1, performanceLogIntervalSeconds);
         maxVisibleModelsPerFrame = Math.max(1, maxVisibleModelsPerFrame);
+        // 0 = 不限制（闸门关闭）；NaN 必须单独挡掉，否则距离比较恒不成立（等于永不加载）。
+        modelLoadMaxDistance = Float.isFinite(modelLoadMaxDistance)
+                ? Math.max(0.0f, modelLoadMaxDistance)
+                : 64.0f;
         animationLodMediumDistance = Math.max(0.0f, animationLodMediumDistance);
         animationLodFarDistance = Math.max(animationLodMediumDistance, animationLodFarDistance);
         animationLodMediumUpdateInterval = Math.max(1, animationLodMediumUpdateInterval);
@@ -233,6 +245,12 @@ public class ConfigData {
         changed |= root.remove("mmdShaderEnabled") != null;
         if (!root.has("gpuSkinningEnabled")) {
             root.addProperty("gpuSkinningEnabled", true);
+            changed = true;
+        }
+        if (!root.has("modelLoadMaxDistance")) {
+            // 26.3 性能优化新增的"加载前距离闸门"。旧配置补一个默认值：
+            // 取值与代码里的默认值一致（行为不变），只是让这个开关在配置文件里看得见、可调。
+            root.addProperty("modelLoadMaxDistance", 64.0);
             changed = true;
         }
         changed |= root.remove("gpuMorphEnabled") != null;

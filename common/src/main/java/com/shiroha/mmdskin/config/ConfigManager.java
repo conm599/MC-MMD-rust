@@ -32,7 +32,17 @@ public final class ConfigManager {
     }
 
     public static int getMaxVisibleModelsPerFrame() {
-        return provider != null ? provider.getMaxVisibleModelsPerFrame() : 10;
+        return provider != null ? provider.getMaxVisibleModelsPerFrame() : 20;
+    }
+
+    /**
+     * 加载前距离闸门（格）；0 = 不限制。
+     *
+     * <p>用来在 acquire 之前挡掉远离相机的实体：不触发 PMX 解析、独立 Bullet 物理世界
+     * 与 GPU buffer 的创建，模型一多时的卡顿主要就来自这里。
+     */
+    public static float getModelLoadMaxDistance() {
+        return provider != null ? provider.getModelLoadMaxDistance() : 64.0f;
     }
 
     public static float getAnimationLodMediumDistance() {

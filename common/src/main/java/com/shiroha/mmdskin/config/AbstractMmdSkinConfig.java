@@ -14,6 +14,7 @@ public abstract class AbstractMmdSkinConfig implements ConfigManager.IConfigProv
     @Override public boolean isPerformanceProfilingEnabled() { return data.performanceProfilingEnabled; }
     @Override public int getPerformanceLogIntervalSeconds() { return data.performanceLogIntervalSeconds; }
     @Override public int getMaxVisibleModelsPerFrame() { return data.maxVisibleModelsPerFrame; }
+    @Override public float getModelLoadMaxDistance() { return data.modelLoadMaxDistance; }
     @Override public float getAnimationLodMediumDistance() { return data.animationLodMediumDistance; }
     @Override public float getAnimationLodFarDistance() { return data.animationLodFarDistance; }
     @Override public int getAnimationLodMediumUpdateInterval() { return data.animationLodMediumUpdateInterval; }
