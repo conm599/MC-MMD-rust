@@ -22,8 +22,13 @@ final class MobReplacementListEntry extends AbstractConfigListEntry<String> {
     private static final int CHOOSE_BUTTON_WIDTH = 60;
     private static final int RESET_BUTTON_WIDTH = 48;
     private static final int BUTTON_GAP = 4;
-    private static final int COLOR_LABEL = 0xFFFFFF;
-    private static final int COLOR_VALUE = 0xA0A0A0;
+    // 26.3 的 GuiGraphicsExtractor.text() 开头有：
+    //     iload 5 / invokestatic ARGB.alpha(I)I / ifne 9 / return
+    // 即 alpha 字节为 0 的颜色会被**静默跳过**（整个 return，什么都不画）。
+    // 26.x 起颜色按 ARGB 解释，0xFFFFFF 是 0x00FFFFFF（alpha=0，全透明），
+    // 所以这里必须写全 0xFF 前缀。
+    private static final int COLOR_LABEL = 0xFFFFFFFF;
+    private static final int COLOR_VALUE = 0xFFA0A0A0;
 
     private final MobReplacementTargets.Target target;
     private final Consumer<String> saveConsumer;
