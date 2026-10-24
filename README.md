@@ -43,8 +43,17 @@
 
 > **为什么是单模块**：Architectury 多模块需要 `de.oceanlabs.mcp:mcp_config:26.3`，
 > 而该版本在 Mojang 侧**不存在**。因此 26.3 移植把 `common/` 的源码与资源目录
-> 直接挂到 `fabric/` 模块的 sourceSet 上（见 `fabric/build.gradle`）。
-> `neoforge/` 目录保留 1.21.5 形态的源码作为参考，26.3 的 NeoForge 端移植进行中。
+> 直接挂到 `fabric/` 与 `neoforge/` 两个模块的 sourceSet 上（见各自的 `build.gradle`）。
+
+## 支持平台
+
+| 平台 | 状态 | 说明 |
+|---|---|---|
+| **Fabric** | ✅ 已实机验证 | Fabric Loader 0.20.1 + Fabric API 0.165.0+26.3 |
+| **NeoForge** | ⚠️ 编译通过，未实机验证 | NeoForge 26.3.0.97 + ModDevGradle 2.0.148 |
+
+两个平台的实现语义等价，共用同一份 `common/` 源码。
+NeoForge 端的构建与 API 迁移细节见 [neoforge/README-26.3.md](neoforge/README-26.3.md)。
 
 ## 使用教程
 

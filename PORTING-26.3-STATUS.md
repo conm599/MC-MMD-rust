@@ -105,29 +105,68 @@
 
 | 项 | 原因 | 证据强度 |
 |---|---|---|
-| **NeoForge 端 26.3** | 本机 `versions/` 只有 26.2/26.3 的 **Fabric** 实例，跑不了 NeoForge | 只能保证 `:neoforge:build` exit 0 |
+| **NeoForge 端 26.3 的运行时行为** | 本机 `versions/` 只有 26.2/26.3 的 **Fabric** 实例，跑不了 NeoForge | 编译期全绿 + ASM 注入点逐条核对（见 §4） |
 | 材质控制 / 表情选择 / 场景放置 / 生物替换界面 | 合成输入限制（无法稳定触发这些界面路径） | 代码路径已核对 |
 | 死亡观战的鼠标环视与滚轮缩放（**已修复并验证**） | — | 见 §2 |
 | `spec.rs` 的 1.7m 体型标定在模型放大后是否跟随缩放 | **待用户拍板**（行为未定义） | — |
 
 ---
 
-## 4. NeoForge 端状态
+## 4. NeoForge 端状态 —— **已移植** ✅（编译期）
 
-`neoforge/` 目录的 1.21.5 形态源码与 26.3 移植不等价，需要按 fabric 侧逐个重写：
+`neoforge/` 目录的 1.21.5 形态源码已按 26.3 重写：**27 个文件重写 + 9 个新建（共 36 个）**，
+对齐 fabric 端的 32 个。`:neoforge:build` exit 0。
 
-| 文件 | 1.21.5 写法 | 26.3 要求 |
+### 4.1 为什么必须换掉 Architectury
+
+`dev.architectury:architectury-neoforge` **没有 26.x 版本**（最高 21.0.5，对应 MC 1.21.x），
+且 Architectury 的 SRG/transform 链路需要 `de.oceanlabs.mcp:mcp_config:26.3`（Mojang 侧不存在）。
+所以改用官方 `net.neoforged.moddev` **2.0.148** + `neoforge` **26.3.0.97**。
+
+```groovy
+// 根 build.gradle：Loom 只给 :fabric，ModDevGradle 只给 :neoforge
+id 'net.fabricmc.fabric-loom' version '1.19.3' apply false
+id 'net.neoforged.moddev'  version '2.0.148' apply false
+
+// neoforge/build.gradle
+neoForge { enable { version = "26.3.0.97"; disableRecompilation = true } }
+```
+
+`common/` 不再是独立 Gradle 模块，源码/资源目录直接挂到两个平台的 `sourceSets.main`。
+
+### 4.2 26.3 API 迁移要点（NeoForge 侧）
+
+| 领域 | 1.21.5 | 26.3 |
 |---|---|---|
-| `MouseHandlerMixin` | `onPress` + `int button` | `onButton(long, MouseButtonInfo, int)`，SDL 键号 |
-| `CameraMixin` | `Camera.setup(...)` | `Camera.update(DeltaTracker)` + `alignWithEntity(float)` |
-| 其余 mixin | `render(...)` / `MultiBufferSource` | `submit(...)` / `SubmitNodeCollector` |
-| `ModConfigScreen` | `AbstractConfigListEntry.render(...)` | `extractRenderState(...)` |
+| 实体渲染 | `render(...)` / `MultiBufferSource` | `submit(...)` / `SubmitNodeCollector` |
+| 相机 | `Camera.setup(...)` | `Camera.update(DeltaTracker)` + `alignWithEntity(float)` |
+| GUI | `GuiGraphics` | `GuiGraphicsExtractor`（`centeredText` 的 x 是**水平中心**） |
+| 鼠标 | `onPress(long,int,int,int)`（GLFW 0=左 1=右 2=中） | `onButton(long, MouseButtonInfo, int)`（SDL 1=左 2=中 3=右） |
+| 渲染状态扩展 | `RegisterRenderStateModifiersEvent` + `ContextKey` | **该事件在 26.3 已删除** → 直接给 `LivingEntityRenderState` 挂扩展 |
+| 按键分类 | `KeyMapping.Category`（字符串） | `KeyMapping.Category`（对象）+ `RegisterKeyMappingsEvent.registerCategory` |
+| 实体附件 | `serialize(Codec)` | `serialize` 只收 `IAttachmentSerializer` 或 `MapCodec` |
+| 服务端对象 | `ServerPlayer.getServer()` | `player.level().getServer()` |
+| 事件总线 | `@EventBusSubscriber(bus = MOD/GAME)` | 26.3 **没有 `bus` 属性**了，事件自带 `IModBusEvent` 即走 mod 总线 |
 
-**硬约束**：`dev.architectury:architectury-neoforge` **没有 26.x 版本**（最高 21.0.5，对应 MC 1.21.x），
-所以 26.3 的 NeoForge 端必须改用官方 `net.neoforged.moddev` 插件、放弃 Architectury。
+### 4.3 产物
 
-已确认可用坐标：`net.neoforged:neoforge:26.3.0.97`、`net.neoforged.moddev:2.0.148`、
-`me.shedaniel.cloth:cloth-config-neoforge:26.3.159`。
+`neoforge/build/libs/mmdskin-neoforge-1.0.5-26.3.jar`：
+`META-INF/neoforge.mods.toml`（`loaderVersion = "[12,)"`，对应 FML 12.0.12）、
+`META-INF/jarjar/`（内嵌 cloth-config-neoforge-26.3.159 + jlayer-1.0.1）、
+`natives/windows-x64/mmd_engine.dll`、`assets/mmdskin/lang/*.json`。
+
+### 4.4 验证强度与未验证项
+
+- ✅ `:neoforge:build` exit 0（compileJava + processResources + jarJar + jar 全绿）
+- ✅ `:fabric:build` 仍 exit 0
+- ✅ 用 ASM 写的注入点校验器把每个 `@Inject` / `@At` / `@Shadow` 按「名字 + 描述符」
+  在 `minecraft-patched-26.3.0.97.jar` 里逐条核对，全部 OK
+  （NeoForge 26.3 的 mixin fork 不带 mixin 注解处理器，javac 无法校验注入点）
+- ❌ **没有实机运行过**（本机没有 MC 26.3 的 NeoForge 实例）。运行时行为
+  （渲染顺序、事件触发时机、YSM 兼容反射签名）仍需实机确认
+- ⚠️ `disableRecompilation = true` 跳过 NeoForm 反编译/重编译，产物是打过
+  NeoForge 二进制补丁的等价 jar，只是没附源码
+
 
 ---
 
