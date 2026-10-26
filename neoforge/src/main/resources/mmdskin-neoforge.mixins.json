@@ -22,7 +22,8 @@
     "MinecraftMixin",
     "MouseHandlerMixin",
     "NeoForgeEntityBaseRenderMixin",
-    "compat.VivecraftVRArmHelperMixin"
+    "compat.VivecraftVRArmHelperMixin",
+    "GuiEntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
